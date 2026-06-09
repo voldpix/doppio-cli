@@ -76,7 +76,7 @@ public class DoppioPipeline {
         var preparedRequest = requestPreparer.prepare(request, processedBody);
         var response = transport.execute(preparedRequest, timeout);
 
-        return new RunReport(preparedRequest, response);
+        return new RunReport(resolution.requestFile(), preparedRequest, response);
     }
 
     private String removeLocalVariableLines(String content) {
