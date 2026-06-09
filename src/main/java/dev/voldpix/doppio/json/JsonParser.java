@@ -1,14 +1,16 @@
 package dev.voldpix.doppio.json;
 
-final class JsonParser {
+import dev.voldpix.doppio.body.BodyException;
+
+public final class JsonParser {
     private final String source;
     private int index;
 
-    JsonParser(String source) {
+    public JsonParser(String source) {
         this.source = source;
     }
 
-    void parse() throws JsonBodyException {
+    public void parse() throws BodyException {
         skipWhitespace();
         parseValue();
         skipWhitespace();
@@ -17,7 +19,7 @@ final class JsonParser {
         }
     }
 
-    private void parseValue() throws JsonBodyException {
+    private void parseValue() throws BodyException {
         skipWhitespace();
         if (isAtEnd()) {
             fail("empty JSON body");
@@ -41,7 +43,7 @@ final class JsonParser {
         }
     }
 
-    private void parseObject() throws JsonBodyException {
+    private void parseObject() throws BodyException {
         consume('{');
         skipWhitespace();
         if (tryConsume('}')) {
@@ -65,7 +67,7 @@ final class JsonParser {
         }
     }
 
-    private void parseArray() throws JsonBodyException {
+    private void parseArray() throws BodyException {
         consume('[');
         skipWhitespace();
         if (tryConsume(']')) {
@@ -82,7 +84,7 @@ final class JsonParser {
         }
     }
 
-    private void parseString() throws JsonBodyException {
+    private void parseString() throws BodyException {
         consume('"');
         while (!isAtEnd()) {
             var current = source.charAt(index++);
@@ -99,7 +101,7 @@ final class JsonParser {
         fail("unterminated string");
     }
 
-    private void parseEscape() throws JsonBodyException {
+    private void parseEscape() throws BodyException {
         if (isAtEnd()) {
             fail("unterminated escape sequence");
         }
@@ -113,7 +115,7 @@ final class JsonParser {
         }
     }
 
-    private void parseUnicodeEscape() throws JsonBodyException {
+    private void parseUnicodeEscape() throws BodyException {
         for (var i = 0; i < 4; i++) {
             if (isAtEnd() || Character.digit(source.charAt(index++), 16) == -1) {
                 fail("invalid unicode escape");
@@ -121,7 +123,7 @@ final class JsonParser {
         }
     }
 
-    private void parseNumber() throws JsonBodyException {
+    private void parseNumber() throws BodyException {
         if (tryConsume('-') && isAtEnd()) {
             fail("invalid number");
         }
@@ -147,7 +149,7 @@ final class JsonParser {
         }
     }
 
-    private void consumeDigits(String message) throws JsonBodyException {
+    private void consumeDigits(String message) throws BodyException {
         if (isAtEnd() || !Character.isDigit(peek())) {
             fail(message);
         }
@@ -156,7 +158,7 @@ final class JsonParser {
         }
     }
 
-    private void consumeLiteral(String literal) throws JsonBodyException {
+    private void consumeLiteral(String literal) throws BodyException {
         if (!source.startsWith(literal, index)) {
             fail("expected " + literal);
         }
@@ -177,7 +179,7 @@ final class JsonParser {
         return false;
     }
 
-    private void consume(char expected) throws JsonBodyException {
+    private void consume(char expected) throws BodyException {
         if (!tryConsume(expected)) {
             fail("expected '" + expected + "'");
         }
@@ -191,7 +193,7 @@ final class JsonParser {
         return index >= source.length();
     }
 
-    private void fail(String message) throws JsonBodyException {
-        throw new JsonBodyException(message + " at character " + (index + 1));
+    private void fail(String message) throws BodyException {
+        throw new BodyException(message + " at character " + (index + 1));
     }
 }

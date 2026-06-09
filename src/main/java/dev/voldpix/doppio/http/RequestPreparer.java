@@ -3,24 +3,42 @@ package dev.voldpix.doppio.http;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.DoppioRequest;
 import dev.voldpix.doppio.model.ErrorKind;
+import dev.voldpix.doppio.model.Header;
 import dev.voldpix.doppio.model.PreparedRequest;
+import dev.voldpix.doppio.model.ProcessedBody;
 import dev.voldpix.doppio.model.QueryParam;
 
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class RequestPreparer {
-    public PreparedRequest prepare(DoppioRequest request) throws DoppioException {
+    public PreparedRequest prepare(DoppioRequest request, ProcessedBody body) throws DoppioException {
         return new PreparedRequest(
+            request.name(),
             request.method(),
             mergeQueryParams(request),
-            request.headers(),
-            request.body()
+            headersWithDefaultContentType(request, body),
+            body == null ? null : body.content()
         );
+    }
+
+    private java.util.List<Header> headersWithDefaultContentType(DoppioRequest request, ProcessedBody body) {
+        var headers = new ArrayList<>(request.headers());
+        if (body == null || !body.hasContent() || body.contentType() == null || hasContentType(headers)) {
+            return headers;
+        }
+
+        headers.add(new Header("Content-Type", body.contentType()));
+        return headers;
+    }
+
+    private boolean hasContentType(java.util.List<Header> headers) {
+        return headers.stream().anyMatch(header -> "content-type".equalsIgnoreCase(header.key()));
     }
 
     private URI mergeQueryParams(DoppioRequest request) throws DoppioException {

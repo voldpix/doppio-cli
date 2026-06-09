@@ -11,11 +11,10 @@ class TemplateEngineTest {
     private final TemplateEngine engine = new TemplateEngine();
 
     @Test
-    void hydrateVariablesFromSeedFirstThenEnvironment() throws Exception {
+    void hydrateVariablesFromProvidedMap() throws Exception {
         var result = engine.hydrate(
             "GET {{ BASE_URL }}/users/{{USER_ID}} -h Authorization={{TOKEN}}",
-            Map.of("BASE_URL", "https://seed.example.com", "TOKEN", "seed-token"),
-            Map.of("BASE_URL", "https://env.example.com", "USER_ID", "42")
+            Map.of("BASE_URL", "https://seed.example.com", "TOKEN", "seed-token", "USER_ID", "42")
         );
 
         assertThat(result)
@@ -28,8 +27,7 @@ class TemplateEngineTest {
     void replaceRepeatedVariablesInBody() throws Exception {
         var result = engine.hydrate(
             "{\"user\":\"{{USER}}\",\"copy\":\"{{ USER }}\"}",
-            Map.of("USER", "voldpix"),
-            Map.of()
+            Map.of("USER", "voldpix")
         );
 
         assertThat(result).isEqualTo("{\"user\":\"voldpix\",\"copy\":\"voldpix\"}");
@@ -37,7 +35,7 @@ class TemplateEngineTest {
 
     @Test
     void failOnMissingVariableBeforeRequestExecution() {
-        assertThatThrownBy(() -> engine.hydrate("{{MISSING}}", Map.of(), Map.of()))
+        assertThatThrownBy(() -> engine.hydrate("{{MISSING}}", Map.of()))
             .isInstanceOf(TemplateException.class)
             .hasMessageContaining("MISSING");
     }

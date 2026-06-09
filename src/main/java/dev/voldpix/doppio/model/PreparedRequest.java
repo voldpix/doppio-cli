@@ -4,6 +4,7 @@ import java.net.URI;
 import java.util.List;
 
 public record PreparedRequest(
+    String name,
     HttpMethod method,
     URI uri,
     List<Header> headers,

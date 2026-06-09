@@ -7,6 +7,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class RequestFileResolver {
+    private final DoppioProjectResolver projectResolver;
+
+    public RequestFileResolver() {
+        this(new DoppioProjectResolver());
+    }
+
+    public RequestFileResolver(DoppioProjectResolver projectResolver) {
+        this.projectResolver = projectResolver;
+    }
+
     public RequestResolution resolve(Path requestedFile, Path workingDirectory) throws DoppioException {
         if (!requestedFile.getFileName().toString().endsWith(".dopo")) {
             throw new DoppioException(ErrorKind.FILE, "Only .dopo request files are supported: " + requestedFile);
@@ -14,7 +24,7 @@ public class RequestFileResolver {
 
         var normalizedWorkingDirectory = workingDirectory.toAbsolutePath().normalize();
         var directCandidate = normalize(normalizedWorkingDirectory, requestedFile);
-        var doppioDir = findDoppioDirectory(normalizedWorkingDirectory);
+        var doppioDir = projectResolver.findDoppioDirectory(normalizedWorkingDirectory);
 
         if (requestedFile.isAbsolute()) {
             return existingDirectFile(directCandidate, doppioDir);
@@ -83,30 +93,6 @@ public class RequestFileResolver {
         }
         var first = requestedFile.getName(0).toString();
         return ".doppio".equals(first) || "requests".equals(first);
-    }
-
-    private Path findDoppioDirectory(Path workingDirectory) {
-        var current = workingDirectory;
-        while (current != null) {
-            if (isDoppioDirectory(current)) {
-                return current;
-            }
-
-            var childDoppio = current.resolve(".doppio");
-            if (isDoppioDirectory(childDoppio)) {
-                return childDoppio;
-            }
-
-            current = current.getParent();
-        }
-        return null;
-    }
-
-    private boolean isDoppioDirectory(Path path) {
-        return path != null
-            && ".doppio".equals(path.getFileName() == null ? "" : path.getFileName().toString())
-            && Files.isDirectory(path)
-            && (Files.exists(path.resolve("local.seed")) || Files.isDirectory(path.resolve("requests")));
     }
 
     private boolean isInside(Path child, Path parent) {

@@ -1,10 +1,10 @@
 package dev.voldpix.doppio.pipeline;
 
+import dev.voldpix.doppio.body.BodyProcessor;
 import dev.voldpix.doppio.dsl.DslProcessor;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.http.RequestPreparer;
 import dev.voldpix.doppio.http.TransportException;
-import dev.voldpix.doppio.json.JsonBodyProcessor;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.DoppioResponse;
 import dev.voldpix.doppio.model.PreparedRequest;
@@ -35,6 +35,7 @@ class DoppioPipelineTest {
             """);
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Create user
             POST {{BASE_URL}}/users?existing=1
             -h Content-Type=application/json
             -h Authorization=Bearer {{TOKEN}}
@@ -56,6 +57,7 @@ class DoppioPipelineTest {
         var report = pipeline.run(Path.of("auth/login.dopo"), tempDir, Map.of("TOKEN", "env-token"));
 
         assertThat(report.isSuccess()).isTrue();
+        assertThat(transport.lastRequest.name()).isEqualTo("Create user");
         assertThat(transport.callCount).isEqualTo(1);
         assertThat(transport.lastRequest.uri().toString())
             .isEqualTo("https://example.com/users?existing=2&user=voldpix");
@@ -66,6 +68,70 @@ class DoppioPipelineTest {
             .extracting("value")
             .contains("application/json", "Bearer env-token");
         assertThat(transport.lastRequest.body()).isEqualTo("{\"name\":\"voldpix\"}");
+    }
+
+    @Test
+    void localVariablesOverrideSeedAndEnvironment() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/local.seed"), """
+            BASE_URL=https://seed.example.com
+            TOKEN=seed-token
+            """);
+        Files.writeString(tempDir.resolve(".doppio/requests/local.dopo"), """
+            @var BASE_URL=https://local.example.com
+            @var TOKEN=local-token
+            POST {{BASE_URL}}/login
+            -h Authorization=Bearer {{TOKEN}}
+            <text|
+            hello
+            |>
+            """);
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        var report = pipeline(transport).run(Path.of("local.dopo"), tempDir, Map.of(
+            "BASE_URL", "https://env.example.com",
+            "TOKEN", "env-token"
+        ));
+
+        assertThat(report.isSuccess()).isTrue();
+        assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://local.example.com/login");
+        assertThat(transport.lastRequest.headers())
+            .contains(new dev.voldpix.doppio.model.Header("Authorization", "Bearer local-token"))
+            .contains(new dev.voldpix.doppio.model.Header("Content-Type", "text/plain; charset=utf-8"));
+    }
+
+    @Test
+    void localVariableValuesAreLiteralAndNotRecursivelyHydrated() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/literal.dopo"), """
+            @var TOKEN="{{HOST}}"
+            GET https://example.com
+            -h Authorization=Bearer {{TOKEN}}
+            """);
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        pipeline(transport).run(Path.of("literal.dopo"), tempDir, Map.of());
+
+        assertThat(transport.lastRequest.headers())
+            .contains(new dev.voldpix.doppio.model.Header("Authorization", "Bearer {{HOST}}"));
+    }
+
+    @Test
+    void defaultContentTypeDoesNotOverrideUserContentType() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/text.dopo"), """
+            POST https://example.com
+            -h Content-Type=application/custom
+            <text|
+            hello
+            |>
+            """);
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        pipeline(transport).run(Path.of("text.dopo"), tempDir, Map.of());
+
+        assertThat(transport.lastRequest.headers())
+            .containsExactly(new dev.voldpix.doppio.model.Header("Content-Type", "application/custom"));
     }
 
     @Test
@@ -138,7 +204,7 @@ class DoppioPipelineTest {
             new SeedFileLoader(),
             new TemplateEngine(),
             new DslProcessor(),
-            new JsonBodyProcessor(),
+            new BodyProcessor(),
             new RequestPreparer(),
             transport,
             Duration.ofSeconds(30)

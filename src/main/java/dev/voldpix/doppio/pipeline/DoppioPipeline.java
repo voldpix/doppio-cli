@@ -1,10 +1,10 @@
 package dev.voldpix.doppio.pipeline;
 
+import dev.voldpix.doppio.body.BodyProcessor;
 import dev.voldpix.doppio.dsl.DslProcessor;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.http.JavaHttpTransport;
 import dev.voldpix.doppio.http.RequestPreparer;
-import dev.voldpix.doppio.json.JsonBodyProcessor;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.ErrorKind;
 import dev.voldpix.doppio.model.RunReport;
@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class DoppioPipeline {
@@ -24,7 +25,7 @@ public class DoppioPipeline {
     private final SeedFileLoader seedFileLoader;
     private final TemplateEngine templateEngine;
     private final DslProcessor dslProcessor;
-    private final JsonBodyProcessor jsonBodyProcessor;
+    private final BodyProcessor bodyProcessor;
     private final RequestPreparer requestPreparer;
     private final HttpTransport transport;
     private final Duration timeout;
@@ -34,7 +35,7 @@ public class DoppioPipeline {
             new SeedFileLoader(),
             new TemplateEngine(),
             new DslProcessor(),
-            new JsonBodyProcessor(),
+            new BodyProcessor(),
             new RequestPreparer(),
             new JavaHttpTransport(),
             DEFAULT_TIMEOUT);
@@ -45,7 +46,7 @@ public class DoppioPipeline {
         SeedFileLoader seedFileLoader,
         TemplateEngine templateEngine,
         DslProcessor dslProcessor,
-        JsonBodyProcessor jsonBodyProcessor,
+        BodyProcessor bodyProcessor,
         RequestPreparer requestPreparer,
         HttpTransport transport,
         Duration timeout
@@ -54,7 +55,7 @@ public class DoppioPipeline {
         this.seedFileLoader = seedFileLoader;
         this.templateEngine = templateEngine;
         this.dslProcessor = dslProcessor;
-        this.jsonBodyProcessor = jsonBodyProcessor;
+        this.bodyProcessor = bodyProcessor;
         this.requestPreparer = requestPreparer;
         this.transport = transport;
         this.timeout = timeout;
@@ -63,17 +64,61 @@ public class DoppioPipeline {
     public RunReport run(Path requestFile, Path workingDirectory, Map<String, String> environment)
         throws DoppioException {
         var resolution = requestFileResolver.resolve(requestFile, workingDirectory);
+        var rawContent = readRequestFile(resolution.requestFile());
+        var metadata = dslProcessor.parseMetadata(rawContent);
         var seedValues = resolution.seedFile() == null
             ? Map.<String, String>of()
             : seedFileLoader.loadIfExists(resolution.seedFile());
-        var rawContent = readRequestFile(resolution.requestFile());
-        var hydratedContent = templateEngine.hydrate(rawContent, seedValues, environment);
+        var hydratableContent = removeLocalVariableLines(rawContent);
+        var hydratedContent = templateEngine.hydrate(hydratableContent, mergeVariables(environment, seedValues, metadata.variables()));
         var request = dslProcessor.process(hydratedContent);
-        var processedBody = jsonBodyProcessor.process(request.body());
-        var preparedRequest = requestPreparer.prepare(request.withBody(processedBody));
+        var processedBody = bodyProcessor.process(request.body());
+        var preparedRequest = requestPreparer.prepare(request, processedBody);
         var response = transport.execute(preparedRequest, timeout);
 
         return new RunReport(preparedRequest, response);
+    }
+
+    private String removeLocalVariableLines(String content) {
+        var result = new StringBuilder();
+        var inBody = false;
+
+        for (var rawLine : content.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1)) {
+            var trimmed = rawLine.trim();
+            if (!inBody && isBodyOpen(trimmed)) {
+                inBody = true;
+            } else if (inBody && "|>".equals(trimmed)) {
+                inBody = false;
+            }
+
+            if (!inBody && (trimmed.equals("@var") || trimmed.startsWith("@var "))) {
+                continue;
+            }
+
+            result.append(rawLine).append('\n');
+        }
+
+        return result.toString();
+    }
+
+    private boolean isBodyOpen(String line) {
+        return line.equals("<|")
+            || line.equalsIgnoreCase("<json|")
+            || line.equalsIgnoreCase("<text|")
+            || line.equalsIgnoreCase("<csv|")
+            || line.equalsIgnoreCase("<form|");
+    }
+
+    private Map<String, String> mergeVariables(
+        Map<String, String> environment,
+        Map<String, String> seedValues,
+        Map<String, String> localVariables
+    ) {
+        var merged = new LinkedHashMap<String, String>();
+        merged.putAll(environment);
+        merged.putAll(seedValues);
+        merged.putAll(localVariables);
+        return merged;
     }
 
     private String readRequestFile(Path requestFile) throws DoppioException {

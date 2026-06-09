@@ -3,22 +3,29 @@ package dev.voldpix.doppio.model;
 import java.util.List;
 
 public record DoppioRequest(
+    String name,
     HttpMethod method,
     String url,
     List<Header> headers,
     List<QueryParam> queryParams,
-    String body
+    BodyBlock body
 ) {
     public DoppioRequest {
         headers = List.copyOf(headers);
         queryParams = List.copyOf(queryParams);
     }
 
-    public boolean hasBody() {
-        return body != null && !body.isBlank();
+    public DoppioRequest(
+        HttpMethod method,
+        String url,
+        List<Header> headers,
+        List<QueryParam> queryParams,
+        BodyBlock body
+    ) {
+        this(null, method, url, headers, queryParams, body);
     }
 
-    public DoppioRequest withBody(String nextBody) {
-        return new DoppioRequest(method, url, headers, queryParams, nextBody);
+    public boolean hasBody() {
+        return body != null && body.hasContent();
     }
 }

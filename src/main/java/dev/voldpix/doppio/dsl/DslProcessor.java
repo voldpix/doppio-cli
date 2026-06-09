@@ -1,5 +1,7 @@
 package dev.voldpix.doppio.dsl;
 
+import dev.voldpix.doppio.model.BodyBlock;
+import dev.voldpix.doppio.model.BodyKind;
 import dev.voldpix.doppio.model.DoppioRequest;
 import dev.voldpix.doppio.model.Header;
 import dev.voldpix.doppio.model.HttpMethod;
@@ -8,14 +10,22 @@ import dev.voldpix.doppio.model.QueryParam;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
 
 public class DslProcessor {
-    private static final String BODY_OPEN = "<|";
     private static final String BODY_CLOSE = "|>";
+    private static final Pattern BODY_OPEN = Pattern.compile("^<(?:(json|text|csv|form))?\\|$", Pattern.CASE_INSENSITIVE);
+
+    public DslMetadata parseMetadata(String content) throws DslParseException {
+        return extractBlocks(content, false).metadata();
+    }
 
     public DoppioRequest process(String content) throws DslParseException {
-        var blocks = extractBlocks(content);
+        var blocks = extractBlocks(content, true);
         var errors = new ArrayList<ParseError>();
 
         if (blocks.directives().isEmpty()) {
@@ -42,6 +52,7 @@ public class DslProcessor {
         }
 
         return new DoppioRequest(
+            blocks.metadata().name(),
             requestLine.method(),
             requestLine.url(),
             headers,
@@ -50,41 +61,48 @@ public class DslProcessor {
         );
     }
 
-    private RawBlocks extractBlocks(String content) throws DslParseException {
+    private RawBlocks extractBlocks(String content, boolean requireRequest) throws DslParseException {
         if (content == null || content.isBlank()) {
             throw new DslParseException(List.of(new ParseError("empty file", "file must contain a request")));
         }
 
+        var metadata = new MetadataBuilder();
         var directives = new ArrayList<String>();
         var bodyLines = new ArrayList<String>();
         var errors = new ArrayList<ParseError>();
         var inBody = false;
+        var requestSeen = false;
+        var bodyKind = BodyKind.JSON;
         var openCount = 0;
         var closeCount = 0;
 
         for (var rawLine : content.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1)) {
             var trimmed = rawLine.trim();
 
-            if (BODY_OPEN.equals(trimmed)) {
-                openCount++;
-                if (inBody) {
-                    errors.add(new ParseError(BODY_OPEN, "<| appears more than once"));
+            if (inBody) {
+                if (BODY_CLOSE.equals(trimmed)) {
+                    closeCount++;
+                    inBody = false;
+                } else if (!trimmed.startsWith("#")) {
+                    bodyLines.add(rawLine);
                 }
+                continue;
+            }
+
+            var bodyOpen = parseBodyOpen(trimmed);
+            if (bodyOpen.isPresent()) {
+                openCount++;
+                if (openCount > 1) {
+                    errors.add(new ParseError(trimmed, "only one body block is allowed"));
+                }
+                bodyKind = bodyOpen.get();
                 inBody = true;
                 continue;
             }
 
             if (BODY_CLOSE.equals(trimmed)) {
                 closeCount++;
-                if (!inBody) {
-                    errors.add(new ParseError(BODY_CLOSE, "|> found with no opening <|"));
-                }
-                inBody = false;
-                continue;
-            }
-
-            if (inBody) {
-                bodyLines.add(rawLine);
+                errors.add(new ParseError(BODY_CLOSE, "|> found with no opening body block"));
                 continue;
             }
 
@@ -92,36 +110,73 @@ public class DslProcessor {
                 continue;
             }
 
-            directives.add(normalizeDirectiveLine(rawLine));
+            var line = normalizeDirectiveLine(rawLine);
+            if (line.startsWith("@")) {
+                if (requestSeen) {
+                    errors.add(new ParseError(line, "@ metadata must appear before the request line"));
+                } else {
+                    parseMetadataLine(line, metadata, errors);
+                }
+                continue;
+            }
+
+            requestSeen = true;
+            directives.add(line);
         }
 
+        if (inBody) {
+            errors.add(new ParseError("<|", "body block opened but never closed with |>"));
+        }
         if (openCount > 1) {
-            errors.add(new ParseError(BODY_OPEN, "<| appears more than once"));
+            errors.add(new ParseError("<|", "only one body block is allowed"));
         }
         if (closeCount > 1) {
             errors.add(new ParseError(BODY_CLOSE, "|> appears more than once"));
-        }
-        if (openCount == 1 && closeCount == 0) {
-            errors.add(new ParseError(BODY_OPEN, "<| opened but never closed with |>"));
-        }
-        if (openCount == 0 && closeCount == 1) {
-            errors.add(new ParseError(BODY_CLOSE, "|> found with no opening <|"));
         }
 
         if (!errors.isEmpty()) {
             throw new DslParseException(errors);
         }
 
-        var body = openCount == 0 ? null : trimOuterBlankLines(bodyLines);
-        if (openCount == 1 && body.isBlank()) {
-            throw new DslParseException(List.of(new ParseError("<| ... |>", "body block is empty")));
+        if (requireRequest && directives.isEmpty()) {
+            throw new DslParseException(List.of(new ParseError("empty file", "file must contain a request")));
         }
 
-        return new RawBlocks(directives, openCount == 0 ? null : body);
+        BodyBlock body = null;
+        if (openCount == 1) {
+            var contentBody = trimOuterBlankLines(bodyLines);
+            if (contentBody.isBlank()) {
+                throw new DslParseException(List.of(new ParseError("<| ... |>", "body block is empty")));
+            }
+            body = new BodyBlock(bodyKind, contentBody);
+        }
+
+        return new RawBlocks(metadata.build(), directives, body);
+    }
+
+    private Optional<BodyKind> parseBodyOpen(String line) throws DslParseException {
+        if (!line.startsWith("<")) {
+            return Optional.empty();
+        }
+
+        var matcher = BODY_OPEN.matcher(line);
+        if (!matcher.matches()) {
+            if (line.startsWith("<file")) {
+                throw new DslParseException(List.of(new ParseError(line, "<file path=...> body blocks are reserved for a later release")));
+            }
+            return Optional.empty();
+        }
+
+        var type = matcher.group(1);
+        var kind = BodyKind.parse(type);
+        if (kind.isEmpty()) {
+            throw new DslParseException(List.of(new ParseError(line, "unsupported body type")));
+        }
+        return kind;
     }
 
     private boolean isIgnoredLine(String trimmed) {
-        return trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("--");
+        return trimmed.isEmpty() || trimmed.startsWith("#");
     }
 
     private String normalizeDirectiveLine(String line) {
@@ -140,6 +195,55 @@ public class DslProcessor {
         }
 
         return String.join("\n", lines.subList(start, end)).strip();
+    }
+
+    private void parseMetadataLine(String line, MetadataBuilder metadata, List<ParseError> errors) {
+        if (line.startsWith("@name")) {
+            var name = line.replaceFirst("^@name(\\s+|$)", "").trim();
+            if (name.isBlank()) {
+                errors.add(new ParseError(line, "expected: @name <request name>"));
+                return;
+            }
+            metadata.setName(name, line, errors);
+        } else if (line.startsWith("@var")) {
+            var variable = line.replaceFirst("^@var(\\s+|$)", "").trim();
+            parseLocalVariable(line, variable, metadata, errors);
+        } else {
+            errors.add(new ParseError(line, "unknown metadata directive"));
+        }
+    }
+
+    private void parseLocalVariable(String line, String variable, MetadataBuilder metadata, List<ParseError> errors) {
+        var eqIdx = variable.indexOf('=');
+        if (eqIdx <= 0) {
+            errors.add(new ParseError(line, "expected: @var KEY=value"));
+            return;
+        }
+
+        var key = variable.substring(0, eqIdx).trim();
+        var value = stripMatchingQuotes(variable.substring(eqIdx + 1).trim());
+        if (key.isBlank()) {
+            errors.add(new ParseError(line, "variable key is missing"));
+            return;
+        }
+        if (key.chars().anyMatch(Character::isWhitespace)) {
+            errors.add(new ParseError(line, "variable key cannot contain whitespace"));
+            return;
+        }
+        metadata.addVariable(key, value, line, errors);
+    }
+
+    private String stripMatchingQuotes(String value) {
+        if (value.length() < 2) {
+            return value;
+        }
+
+        var first = value.charAt(0);
+        var last = value.charAt(value.length() - 1);
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 
     private RequestLine parseRequestLine(String line, List<ParseError> errors) {
@@ -205,9 +309,34 @@ public class DslProcessor {
         }
     }
 
-    private record RawBlocks(List<String> directives, String body) {
+    private record RawBlocks(DslMetadata metadata, List<String> directives, BodyBlock body) {
     }
 
     private record RequestLine(HttpMethod method, String url) {
+    }
+
+    private static final class MetadataBuilder {
+        private String name;
+        private final Map<String, String> variables = new LinkedHashMap<>();
+
+        private void setName(String value, String line, List<ParseError> errors) {
+            if (name != null) {
+                errors.add(new ParseError(line, "only one @name is allowed"));
+                return;
+            }
+            name = value;
+        }
+
+        private void addVariable(String key, String value, String line, List<ParseError> errors) {
+            if (variables.containsKey(key)) {
+                errors.add(new ParseError(line, "duplicate local variable: " + key));
+                return;
+            }
+            variables.put(key, value);
+        }
+
+        private DslMetadata build() {
+            return new DslMetadata(name, variables);
+        }
     }
 }

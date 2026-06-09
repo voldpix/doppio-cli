@@ -37,6 +37,7 @@ class DoppioCommandTest {
         assertThat(tempDir.resolve(".doppio/requests/test.dopo")).exists();
         assertThat(tempDir.resolve("requests")).doesNotExist();
         assertThat(Files.readString(tempDir.resolve(".doppio/requests/test.dopo")))
+            .contains("@name Smoke test")
             .contains("GET {{BASE_URL}}/get")
             .contains("{{TEST_ID}}");
 
@@ -80,6 +81,7 @@ class DoppioCommandTest {
         Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login request
             GET {{BASE_URL}}/get
             -h Accept=application/json
             -q page=1
@@ -97,10 +99,43 @@ class DoppioCommandTest {
         assertThat(exit).isZero();
         assertThat(out.toString())
             .contains("GET")
+            .contains("Login request")
             .contains("Request")
             .contains("Response Headers")
             .contains("Response Body")
             .contains("{\"ok\":true}");
+    }
+
+    @Test
+    void listPrintsRequestTreeWithoutInternalRequestsFolder() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            POST https://example.com/login
+            """);
+        Files.writeString(tempDir.resolve(".doppio/requests/test.dopo"), "GET https://example.com/test");
+        Files.writeString(tempDir.resolve(".doppio/requests/bad.dopo"), """
+            @name Broken request
+            FETCH nope
+            """);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("list");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Requests")
+            .contains("auth/")
+            .contains("Login user (auth/login.dopo)")
+            .contains("test (test.dopo)")
+            .contains("Broken request (bad.dopo) [parse error]")
+            .doesNotContain(".doppio/requests");
     }
 
     private static class FakeTransport implements HttpTransport {

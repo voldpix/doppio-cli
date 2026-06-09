@@ -18,19 +18,22 @@ public class InitCommand implements Callable<Integer> {
         """;
 
     private static final String EXAMPLE_DOPO = """
+        @name Create sample user
+        @var ROLE=admin
         POST {{BASE_URL}}/post
         -h Content-Type=application/json
         -q source=doppio
 
-        <|
+        <json|
         {
           "username": "{{USERNAME}}",
-          "role": "admin"
+          "role": "{{ROLE}}"
         }
         |>
         """;
 
     private static final String TEST_DOPO = """
+        @name Smoke test
         GET {{BASE_URL}}/get
         -h Accept=application/json
         -q testId={{TEST_ID}}

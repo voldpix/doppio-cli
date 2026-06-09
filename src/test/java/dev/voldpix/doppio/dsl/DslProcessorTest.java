@@ -1,5 +1,6 @@
 package dev.voldpix.doppio.dsl;
 
+import dev.voldpix.doppio.model.BodyKind;
 import dev.voldpix.doppio.model.Header;
 import dev.voldpix.doppio.model.HttpMethod;
 import dev.voldpix.doppio.model.QueryParam;
@@ -21,11 +22,63 @@ class DslProcessorTest {
     void parseMinimalRequest() throws Exception {
         var result = processor.process("GET https://example.com");
 
+        assertThat(result.name()).isNull();
         assertThat(result.method()).isEqualTo(HttpMethod.GET);
         assertThat(result.url()).isEqualTo("https://example.com");
         assertThat(result.headers()).isEmpty();
         assertThat(result.queryParams()).isEmpty();
         assertThat(result.body()).isNull();
+    }
+
+    @Test
+    void parseNameAndLocalVariablesBeforeRequest() throws Exception {
+        var input = """
+            @name Login user
+            @var TOKEN="local token"
+            @var USER_ID=42
+            POST https://example.com/users/42
+            """;
+
+        var metadata = processor.parseMetadata(input);
+        var result = processor.process(input);
+
+        assertThat(metadata.name()).isEqualTo("Login user");
+        assertThat(metadata.variables())
+            .containsEntry("TOKEN", "local token")
+            .containsEntry("USER_ID", "42");
+        assertThat(result.name()).isEqualTo("Login user");
+    }
+
+    @Test
+    void rejectMetadataAfterRequestLine() {
+        assertThatThrownBy(() -> processor.process("""
+            GET https://example.com
+            @name Too late
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("before the request line"));
+    }
+
+    @Test
+    void rejectDuplicateNameAndDuplicateLocalVariables() {
+        assertThatThrownBy(() -> processor.parseMetadata("""
+            @name One
+            @name Two
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("only one @name"));
+
+        assertThatThrownBy(() -> processor.parseMetadata("""
+            @var TOKEN=one
+            @var TOKEN=two
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("duplicate local variable"));
     }
 
     @Test
@@ -38,11 +91,15 @@ class DslProcessorTest {
     }
 
     @Test
-    void parseHeaders() throws Exception {
+    void parseHeadersAndQueryParams() throws Exception {
         var input = """
-            POST https://example.com
+            GET https://example.com
             -h content-type=application/json
             header authorization=Bearer token123
+            -q page=1
+            query size=20
+            -q filter=
+            -q flag
             """;
 
         var result = processor.process(input);
@@ -52,20 +109,6 @@ class DslProcessorTest {
                 new Header("content-type", "application/json"),
                 new Header("authorization", "Bearer token123")
             );
-    }
-
-    @Test
-    void parseQueryParams() throws Exception {
-        var input = """
-            GET https://example.com
-            -q page=1
-            query size=20
-            -q filter=
-            -q flag
-            """;
-
-        var result = processor.process(input);
-
         assertThat(result.queryParams())
             .containsExactly(
                 new QueryParam("page", "1"),
@@ -76,24 +119,49 @@ class DslProcessorTest {
     }
 
     @Test
-    void parseBody() throws Exception {
-        var input = """
+    void parseDefaultAndExplicitTypedBodies() throws Exception {
+        assertThat(processor.process("""
             POST https://example.com
             <|
-            {"name": "John", "age": 30}
+            {"name": "John"}
             |>
-            """;
+            """).body().kind()).isEqualTo(BodyKind.JSON);
 
-        var result = processor.process(input);
+        assertThat(processor.process("""
+            POST https://example.com
+            <json|
+            {"name": "John"}
+            |>
+            """).body().kind()).isEqualTo(BodyKind.JSON);
 
-        assertThat(result.body()).isEqualTo("{\"name\": \"John\", \"age\": 30}");
+        assertThat(processor.process("""
+            POST https://example.com
+            <text|
+            hello
+            |>
+            """).body().kind()).isEqualTo(BodyKind.TEXT);
+
+        assertThat(processor.process("""
+            POST https://example.com
+            <csv|
+            a,b
+            |>
+            """).body().kind()).isEqualTo(BodyKind.CSV);
+
+        assertThat(processor.process("""
+            POST https://example.com
+            <form|
+            username=voldpix
+            |>
+            """).body().kind()).isEqualTo(BodyKind.FORM);
     }
 
     @Test
-    void preserveWhitespaceInsideBody() throws Exception {
+    void preserveWhitespaceAndIgnoreHashCommentsInsideBody() throws Exception {
         var input = """
             POST https://example.com
-            <|
+            <json|
+            # body comment
             {
               "name": "   lots   of   spaces   "
             }
@@ -102,7 +170,9 @@ class DslProcessorTest {
 
         var result = processor.process(input);
 
-        assertThat(result.body()).contains("\"name\": \"   lots   of   spaces   \"");
+        assertThat(result.body().content())
+            .doesNotContain("# body comment")
+            .contains("\"name\": \"   lots   of   spaces   \"");
     }
 
     @Test
@@ -119,22 +189,25 @@ class DslProcessorTest {
 
         assertThat(result.method()).isEqualTo(HttpMethod.PUT);
         assertThat(result.url()).isEqualTo("https://example.com/users/1");
-        assertThat(result.body()).isEqualTo("{\"id\": 1}");
+        assertThat(result.body().content()).isEqualTo("{\"id\": 1}");
     }
 
     @Test
-    void ignoreCommentsAndExtraWhitespaceOutsideBody() throws Exception {
-        var input = """
+    void onlyHashStartsAComment() throws Exception {
+        var result = processor.process("""
             # this is a comment
-            -- this is also ignored for compatibility
             GET    https://example.com
             -h   content-type=application/json
-            """;
-
-        var result = processor.process(input);
+            """);
 
         assertThat(result.url()).isEqualTo("https://example.com");
         assertThat(result.headers()).containsExactly(new Header("content-type", "application/json"));
+
+        assertThatThrownBy(() -> processor.process("""
+            -- no longer a comment
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class);
     }
 
     @Test

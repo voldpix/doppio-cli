@@ -27,6 +27,9 @@ public class ConsoleFormatter {
 
         out.println();
         out.printf("%s%s%s %s %s%n", BOLD, request.method(), RESET, CYAN + request.uri() + RESET, "");
+        if (request.name() != null && !request.name().isBlank()) {
+            out.printf("%s%s%s%n", GRAY, request.name(), RESET);
+        }
         printRequestDetails(request, out);
 
         out.println();

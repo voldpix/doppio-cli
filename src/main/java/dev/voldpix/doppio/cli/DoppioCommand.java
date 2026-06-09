@@ -2,6 +2,7 @@ package dev.voldpix.doppio.cli;
 
 import dev.voldpix.doppio.console.ConsoleFormatter;
 import dev.voldpix.doppio.http.HttpTransport;
+import dev.voldpix.doppio.list.RequestListService;
 import dev.voldpix.doppio.pipeline.DoppioPipeline;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -48,7 +49,7 @@ public class DoppioCommand implements Callable<Integer> {
                 new dev.voldpix.doppio.seed.SeedFileLoader(),
                 new dev.voldpix.doppio.template.TemplateEngine(),
                 new dev.voldpix.doppio.dsl.DslProcessor(),
-                new dev.voldpix.doppio.json.JsonBodyProcessor(),
+                new dev.voldpix.doppio.body.BodyProcessor(),
                 new dev.voldpix.doppio.http.RequestPreparer(),
                 transport,
                 DoppioPipeline.DEFAULT_TIMEOUT
@@ -57,6 +58,7 @@ public class DoppioCommand implements Callable<Integer> {
         var commandLine = new CommandLine(new DoppioCommand());
         commandLine.addSubcommand("init", new InitCommand(workingDirectory, out));
         commandLine.addSubcommand("run", new RunCommand(workingDirectory, environment, pipeline, formatter, out, err));
+        commandLine.addSubcommand("list", new ListCommand(workingDirectory, new RequestListService(), out, err));
         commandLine.setOut(out);
         commandLine.setErr(err);
         return commandLine;

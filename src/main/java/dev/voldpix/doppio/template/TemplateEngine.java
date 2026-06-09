@@ -6,14 +6,13 @@ import java.util.regex.Pattern;
 public class TemplateEngine {
     private static final Pattern VARIABLE = Pattern.compile("\\{\\{\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*}}");
 
-    public String hydrate(String content, Map<String, String> seedValues, Map<String, String> environment)
-        throws TemplateException {
+    public String hydrate(String content, Map<String, String> variables) throws TemplateException {
         var matcher = VARIABLE.matcher(content);
         var result = new StringBuilder();
 
         while (matcher.find()) {
             var key = matcher.group(1);
-            var value = resolve(key, seedValues, environment);
+            var value = variables.get(key);
             if (value == null) {
                 throw new TemplateException("Missing variable: " + key);
             }
@@ -22,12 +21,5 @@ public class TemplateEngine {
 
         matcher.appendTail(result);
         return result.toString();
-    }
-
-    private String resolve(String key, Map<String, String> seedValues, Map<String, String> environment) {
-        if (seedValues.containsKey(key)) {
-            return seedValues.get(key);
-        }
-        return environment.get(key);
     }
 }
