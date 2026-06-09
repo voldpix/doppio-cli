@@ -137,6 +137,106 @@ class DoppioCommandTest {
     }
 
     @Test
+    void genCreatesEditableRequestPlaceholderUnderRequestsFolder() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        var out = new StringWriter();
+        var err = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "auth/login");
+
+        var requestFile = tempDir.resolve(".doppio/requests/auth/login.dopo");
+        assertThat(exit).isZero();
+        assertThat(err.toString()).isBlank();
+        assertThat(requestFile).exists();
+        assertThat(Files.readString(requestFile))
+            .contains("@name Login")
+            .contains("POST {{BASE_URL}}/path")
+            .contains("-h Content-Type=application/json")
+            .contains("<json|");
+        assertThat(out.toString())
+            .contains("Created request")
+            .contains("auth/login.dopo");
+    }
+
+    @Test
+    void genRejectsOverwritesAndInternalRequestsPrefix() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/existing.dopo"), "GET https://example.com");
+        var err = new StringWriter();
+
+        var overwriteExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "existing.dopo");
+
+        assertThat(overwriteExit).isEqualTo(1);
+        assertThat(err.toString()).contains("Request already exists");
+        assertThat(Files.readString(tempDir.resolve(".doppio/requests/existing.dopo")))
+            .isEqualTo("GET https://example.com");
+
+        err.getBuffer().setLength(0);
+        var prefixedExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "requests/auth/login");
+
+        assertThat(prefixedExit).isEqualTo(1);
+        assertThat(err.toString()).contains("without .doppio/requests");
+    }
+
+    @Test
+    void showPrintsRequestDetailsWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            @var EMAIL=user@example.com
+            POST {{BASE_URL}}/auth/login
+            -h Authorization=Bearer {{TOKEN}}
+            -q source=doppio
+            <json|
+            {
+              "email": "{{EMAIL}}"
+            }
+            |>
+            """);
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("show", "auth/login.dopo");
+
+        assertThat(exit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("Request")
+            .contains("Name: Login user")
+            .contains("File: auth/login.dopo")
+            .contains("Method: POST")
+            .contains("URL: {{BASE_URL}}/auth/login")
+            .contains("Body: JSON")
+            .contains("Authorization=Bearer {{TOKEN}}")
+            .contains("source=doppio")
+            .contains("EMAIL=user@example.com");
+    }
+
+    @Test
     void cleanRemovesSavedReportsUnderRequestsFolder() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
@@ -157,6 +257,54 @@ class DoppioCommandTest {
         assertThat(out.toString()).contains("Removed 1 saved report");
         assertThat(tempDir.resolve(".doppio/requests/auth/login-1700000000000.txt")).doesNotExist();
         assertThat(tempDir.resolve(".doppio/requests/auth/notes.txt")).exists();
+    }
+
+    @Test
+    void rmMovesRequestFileToDoppioTrash() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        var requestFile = tempDir.resolve(".doppio/requests/auth/login.dopo");
+        Files.writeString(requestFile, "GET https://example.com/login");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("rm", "auth/login.dopo");
+
+        assertThat(exit).isZero();
+        assertThat(requestFile).doesNotExist();
+        try (var trashFiles = Files.list(tempDir.resolve(".doppio/trash"))) {
+            var files = trashFiles.toList();
+            assertThat(files).hasSize(1);
+            assertThat(files.getFirst().getFileName().toString()).endsWith("auth-login.dopo");
+            assertThat(Files.readString(files.getFirst())).isEqualTo("GET https://example.com/login");
+        }
+        assertThat(out.toString())
+            .contains("Moved request to trash")
+            .contains("auth/login.dopo");
+    }
+
+    @Test
+    void rmRejectsFilesOutsideRequestsFolder() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        var looseFile = tempDir.resolve(".doppio/loose.dopo");
+        Files.writeString(looseFile, "GET https://example.com");
+        var err = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir.resolve(".doppio"),
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("rm", "loose.dopo");
+
+        assertThat(exit).isEqualTo(1);
+        assertThat(looseFile).exists();
+        assertThat(err.toString()).contains("rm only removes files under .doppio/requests");
     }
 
     @Test

@@ -54,13 +54,18 @@ Only `#` starts a comment. `@name` and `@var` are metadata, not scripting hooks,
 
 ```bash
 doppio init
+doppio gen auth/login
 doppio list
+doppio show auth/login.dopo
 doppio run test.dopo
 doppio run auth/login.dopo --save
 doppio clean
+doppio rm auth/login.dopo
 ```
 
-`--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes those generated report files under `.doppio/requests`.
+`doppio gen` creates editable request placeholders under `.doppio/requests`, and `doppio show` inspects metadata, method, URL, headers, query params, local variables, and body type without executing HTTP.
+
+`--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes those generated report files under `.doppio/requests`. `doppio rm` moves request files to `.doppio/trash` instead of deleting them outright.
 
 ## Build
 

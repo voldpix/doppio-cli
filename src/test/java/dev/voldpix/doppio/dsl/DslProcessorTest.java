@@ -50,6 +50,32 @@ class DslProcessorTest {
     }
 
     @Test
+    void inspectAllowsTemplatedUrlWithoutHydration() throws Exception {
+        var input = """
+            @name Login user
+            @var EMAIL=user@example.com
+            POST {{BASE_URL}}/auth/login
+            -h Authorization=Bearer {{TOKEN}}
+            -q source=doppio
+            <json|
+            {
+              "email": "{{EMAIL}}"
+            }
+            |>
+            """;
+
+        var inspection = processor.inspect(input);
+
+        assertThat(inspection.metadata().variables()).containsEntry("EMAIL", "user@example.com");
+        assertThat(inspection.request().name()).isEqualTo("Login user");
+        assertThat(inspection.request().method()).isEqualTo(HttpMethod.POST);
+        assertThat(inspection.request().url()).isEqualTo("{{BASE_URL}}/auth/login");
+        assertThat(inspection.request().headers()).containsExactly(new Header("Authorization", "Bearer {{TOKEN}}"));
+        assertThat(inspection.request().queryParams()).containsExactly(new QueryParam("source", "doppio"));
+        assertThat(inspection.request().body().kind()).isEqualTo(BodyKind.JSON);
+    }
+
+    @Test
     void rejectMetadataAfterRequestLine() {
         assertThatThrownBy(() -> processor.process("""
             GET https://example.com
