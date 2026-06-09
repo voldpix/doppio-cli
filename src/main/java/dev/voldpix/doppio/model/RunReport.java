@@ -1,6 +1,8 @@
 package dev.voldpix.doppio.model;
 
-public record RunReport(PreparedRequest request, DoppioResponse response) {
+import java.nio.file.Path;
+
+public record RunReport(Path requestFile, PreparedRequest request, DoppioResponse response) {
     public boolean isSuccess() {
         return response.isSuccess();
     }

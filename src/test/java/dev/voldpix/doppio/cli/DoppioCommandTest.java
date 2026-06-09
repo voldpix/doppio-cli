@@ -100,10 +100,63 @@ class DoppioCommandTest {
         assertThat(out.toString())
             .contains("GET")
             .contains("Login request")
-            .contains("Request")
+            .contains("Request Details")
             .contains("Response Headers")
             .contains("Response Body")
-            .contains("{\"ok\":true}");
+            .contains("\"ok\": true");
+    }
+
+    @Test
+    void runCanSaveReportNextToResolvedRequestFile() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login request
+            GET https://example.com/get
+            """);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("run", "--save", "auth/login.dopo");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString()).contains("Saved report:");
+        var reports = Files.list(tempDir.resolve(".doppio/requests/auth"))
+            .filter(path -> path.getFileName().toString().matches("login-\\d{13}\\.txt"))
+            .toList();
+        assertThat(reports).hasSize(1);
+        assertThat(Files.readString(reports.getFirst()))
+            .contains("Doppio Run")
+            .contains("Login request")
+            .contains("Response Body")
+            .doesNotContain("\u001B[");
+    }
+
+    @Test
+    void cleanRemovesSavedReportsUnderRequestsFolder() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login-1700000000000.txt"), "old report");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/notes.txt"), "keep");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("clean");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString()).contains("Removed 1 saved report");
+        assertThat(tempDir.resolve(".doppio/requests/auth/login-1700000000000.txt")).doesNotExist();
+        assertThat(tempDir.resolve(".doppio/requests/auth/notes.txt")).exists();
     }
 
     @Test

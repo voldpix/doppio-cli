@@ -1,0 +1,11 @@
+.git
+.idea
+.mvn
+.doppio
+dist
+build
+*.iml
+*.log
+
+target/*
+!target/doppio-*.jar

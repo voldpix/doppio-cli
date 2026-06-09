@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
-@Command(name = "init", description = "Create a Doppio project scaffold.")
+@Command(name = "init", mixinStandardHelpOptions = true, description = "Create a Doppio project scaffold.")
 public class InitCommand implements Callable<Integer> {
     private static final String LOCAL_SEED = """
         # Local values used by {{VARIABLE}} placeholders in .dopo files.

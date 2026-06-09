@@ -4,6 +4,8 @@ import dev.voldpix.doppio.console.ConsoleFormatter;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.list.RequestListService;
 import dev.voldpix.doppio.pipeline.DoppioPipeline;
+import dev.voldpix.doppio.report.ReportCleaner;
+import dev.voldpix.doppio.report.RunReportWriter;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -57,8 +59,9 @@ public class DoppioCommand implements Callable<Integer> {
 
         var commandLine = new CommandLine(new DoppioCommand());
         commandLine.addSubcommand("init", new InitCommand(workingDirectory, out));
-        commandLine.addSubcommand("run", new RunCommand(workingDirectory, environment, pipeline, formatter, out, err));
+        commandLine.addSubcommand("run", new RunCommand(workingDirectory, environment, pipeline, formatter, new RunReportWriter(), out, err));
         commandLine.addSubcommand("list", new ListCommand(workingDirectory, new RequestListService(), out, err));
+        commandLine.addSubcommand("clean", new CleanCommand(workingDirectory, new ReportCleaner(), out, err));
         commandLine.setOut(out);
         commandLine.setErr(err);
         return commandLine;
