@@ -1,5 +1,6 @@
 target/
 build/
+dist/
 dependency-reduced-pom.xml
 *.log
 .env

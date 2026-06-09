@@ -66,8 +66,19 @@ doppio clean
 
 ```bash
 mvn test
-mvn -DskipTests package
+mvn -DskipTests clean package
 java -jar target/doppio-1.0-SNAPSHOT.jar --help
 ```
+
+## Native Build
+
+```bash
+scripts/build-native.sh
+dist/native/doppio --help
+```
+
+The native build uses Docker with the GraalVM native-image community container. The script packages the Maven jar, builds a Linux native executable inside Docker, and copies it to `dist/native/doppio`. The `dist/` folder is ignored because it is a generated build artifact.
+
+Docker must be installed and running before invoking the script.
 
 The implementation uses Java `HttpClient`, picocli, and a small pipeline of parser, template, body, preparation, transport, and formatter steps. That keeps the next native-image/GraalVM pass straightforward.
