@@ -18,13 +18,10 @@ public class RequestFileResolver {
     }
 
     public RequestResolution resolve(Path requestedFile, Path workingDirectory) throws DoppioException {
-        if (!requestedFile.getFileName().toString().endsWith(".dopo")) {
-            throw new DoppioException(ErrorKind.FILE, "Only .dopo request files are supported: " + requestedFile);
-        }
-
         var normalizedWorkingDirectory = workingDirectory.toAbsolutePath().normalize();
-        var directCandidate = normalize(normalizedWorkingDirectory, requestedFile);
         var doppioDir = projectResolver.findDoppioDirectory(normalizedWorkingDirectory);
+        var effectiveRequestFile = effectiveRequestFile(requestedFile, doppioDir);
+        var directCandidate = normalize(normalizedWorkingDirectory, effectiveRequestFile);
 
         if (requestedFile.isAbsolute()) {
             return existingDirectFile(directCandidate, doppioDir);
@@ -43,7 +40,7 @@ public class RequestFileResolver {
             return existingFile(directCandidate, seedFile);
         }
 
-        var requestsCandidate = doppioDir.resolve("requests").resolve(requestedFile).normalize();
+        var requestsCandidate = doppioDir.resolve("requests").resolve(effectiveRequestFile).normalize();
         if (Files.exists(requestsCandidate)) {
             return existingFile(requestsCandidate, seedFile);
         }
@@ -52,6 +49,24 @@ public class RequestFileResolver {
             ErrorKind.FILE,
             "Request file not found in .doppio/requests: " + requestedFile
         );
+    }
+
+    private Path effectiveRequestFile(Path requestedFile, Path doppioDir) throws DoppioException {
+        var filename = requestedFile.getFileName();
+        if (filename == null) {
+            throw new DoppioException(ErrorKind.FILE, "Request file is required");
+        }
+
+        var filenameText = filename.toString();
+        if (filenameText.endsWith(".dopo")) {
+            return requestedFile;
+        }
+
+        if (filenameText.contains(".") || requestedFile.isAbsolute() || doppioDir == null) {
+            throw new DoppioException(ErrorKind.FILE, "Only .dopo request files are supported: " + requestedFile);
+        }
+
+        return requestedFile.resolveSibling(filenameText + ".dopo");
     }
 
     private RequestResolution existingDirectFile(Path directCandidate, Path doppioDir) throws DoppioException {

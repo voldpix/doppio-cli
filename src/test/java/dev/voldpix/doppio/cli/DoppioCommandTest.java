@@ -94,7 +94,7 @@ class DoppioCommandTest {
             new PrintWriter(out, true),
             new PrintWriter(new StringWriter(), true),
             new FakeTransport()
-        ).execute("run", "auth/login.dopo");
+        ).execute("run", "auth/login");
 
         assertThat(exit).isZero();
         assertThat(out.toString())
@@ -220,7 +220,7 @@ class DoppioCommandTest {
             new PrintWriter(out, true),
             new PrintWriter(new StringWriter(), true),
             transport
-        ).execute("show", "auth/login.dopo");
+        ).execute("show", "auth/login");
 
         assertThat(exit).isZero();
         assertThat(transport.callCount).isZero();
@@ -272,7 +272,7 @@ class DoppioCommandTest {
             new PrintWriter(out, true),
             new PrintWriter(new StringWriter(), true),
             new FakeTransport()
-        ).execute("rm", "auth/login.dopo");
+        ).execute("rm", "auth/login");
 
         assertThat(exit).isZero();
         assertThat(requestFile).doesNotExist();
