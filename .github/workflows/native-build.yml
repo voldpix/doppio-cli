@@ -57,20 +57,23 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/native
+          
+          # Resolve jar (ignore sources/javadoc variants)
           jar=$(ls target/doppio-*.jar | grep -v sources | grep -v javadoc | head -1)
+          jarbase=$(basename "$jar" .jar)
           echo "Using jar: $jar"
+          
           native-image \
             --no-fallback \
             -H:+UnlockExperimentalVMOptions \
             -H:+ReportExceptionStackTraces \
             -H:Path=$(pwd)/dist/native \
             -jar "$jar"
-          echo "--- Built files (before rename) ---"
-          ls -lh dist/native/
-          # native-image ignores -H:Name with -jar, so rename whatever was produced
-          built=$(find dist/native -maxdepth 1 -type f -executable | head -1)
-          mv "$built" "dist/native/${{ matrix.executable }}"
-          echo "--- Built files (after rename) ---"
+          
+          # Rename to canonical executable name (native-image derives name from jar, not -H:Name)
+          mv "dist/native/$jarbase" "dist/native/${{ matrix.executable }}"
+          
+          echo "--- Built files ---"
           ls -lh dist/native/
 
       - name: Verify executable
