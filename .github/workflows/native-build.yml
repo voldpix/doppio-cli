@@ -1,0 +1,100 @@
+name: Native Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_suffix:
+        description: Optional suffix for artifact names
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x64
+            executable: doppio
+          - os: macos-latest
+            label: macos
+            executable: doppio
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: 'maven'
+          native-image-job-reports: 'true'
+
+      - name: Show toolchain
+        run: |
+          java --version
+          native-image --version
+          mvn --version
+
+      - name: Test and package jar
+        run: mvn clean package
+
+      - name: Build native executable
+        run: |
+          mkdir -p dist/native
+          cd dist/native
+          native-image \
+            --no-fallback \
+            -H:+ReportExceptionStackTraces \
+            -H:Name=${{ matrix.executable }} \
+            -jar ../../target/doppio-1.0-SNAPSHOT.jar
+
+      - name: Verify executable
+        run: ./dist/native/${{ matrix.executable }} --help
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix="${{ inputs.artifact_suffix }}"
+          suffix="$(printf '%s' "$suffix" | tr -c 'A-Za-z0-9._-' '-')"
+          suffix="${suffix##-}"
+          suffix="${suffix%%-}"
+          if [[ -n "$suffix" ]]; then
+            suffix="-$suffix"
+          fi
+          artifact_name="doppio-${{ matrix.label }}${suffix}"
+          artifact_dir="dist/artifacts/$artifact_name"
+          artifact_tar="dist/artifacts/$artifact_name.tar.gz"
+          mkdir -p "$artifact_dir"
+          cp "dist/native/${{ matrix.executable }}" "$artifact_dir/doppio"
+          chmod +x "$artifact_dir/doppio"
+          {
+            echo "Doppio native executable"
+            echo "Platform: ${{ matrix.label }}"
+            echo "Runner OS: $RUNNER_OS"
+            echo "Runner architecture: $RUNNER_ARCH"
+            echo "Commit: ${{ github.sha }}"
+            echo "Built at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > "$artifact_dir/README.txt"
+          tar -czf "$artifact_tar" -C "$artifact_dir" .
+          echo "artifact_path=$artifact_tar" >> "$GITHUB_ENV"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.artifact_name }}
+          path: ${{ env.artifact_path }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
