@@ -5,11 +5,13 @@ import org.jline.reader.Completer;
 import org.jline.reader.LineReader;
 import org.jline.reader.ParsedLine;
 
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Set;
 
 public class ShellCompleter implements Completer {
-    private static final Set<String> REQUEST_COMMANDS = Set.of("run", "preview", "show", "edit", "format", "check", "rm");
+    private static final Set<String> REQUEST_FILE_COMMANDS = Set.of("run", "preview", "show", "edit", "rm", "mv", "move", "cp", "rename");
+    private static final Set<String> REQUEST_OR_FOLDER_COMMANDS = Set.of("format", "check");
     private static final List<String> COMMANDS = List.of(
         "help",
         "exit",
@@ -26,6 +28,10 @@ public class ShellCompleter implements Completer {
         "format",
         "check",
         "rm",
+        "mv",
+        "move",
+        "cp",
+        "rename",
         "seed",
         "config",
         "projects",
@@ -62,8 +68,11 @@ public class ShellCompleter implements Completer {
         }
 
         var command = words.getFirst();
-        if (REQUEST_COMMANDS.contains(command) && line.wordIndex() == 1) {
-            completeRequests(candidates);
+        if (REQUEST_FILE_COMMANDS.contains(command) && line.wordIndex() == 1) {
+            completeRequestFiles(candidates);
+        } else if (REQUEST_OR_FOLDER_COMMANDS.contains(command) && line.wordIndex() == 1) {
+            completeRequestFiles(candidates);
+            completeRecipeFolders(candidates);
         } else if ("seed".equals(command)) {
             completeSeed(words, line.wordIndex(), candidates);
         } else if ("config".equals(command)) {
@@ -71,7 +80,7 @@ public class ShellCompleter implements Completer {
         }
     }
 
-    private void completeRequests(List<Candidate> candidates) {
+    private void completeRequestFiles(List<Candidate> candidates) {
         try {
             requestResolver.all(shell.session().projectRoot())
                 .forEach(candidate -> {
@@ -79,6 +88,22 @@ public class ShellCompleter implements Completer {
                     var stem = stem(candidate.relativePath().getFileName().toString());
                     candidates.add(new Candidate(stem));
                 });
+        } catch (Exception e) {
+            // Completion should never interrupt shell input.
+        }
+    }
+
+    private void completeRecipeFolders(List<Candidate> candidates) {
+        var recipesDir = shell.session().doppioDirectory().resolve("recipes");
+        if (!Files.isDirectory(recipesDir)) {
+            return;
+        }
+        try (var files = Files.walk(recipesDir)) {
+            files.filter(Files::isDirectory)
+                .filter(path -> !path.equals(recipesDir))
+                .map(recipesDir::relativize)
+                .map(path -> path.toString() + "/")
+                .forEach(folder -> candidates.add(new Candidate(folder)));
         } catch (Exception e) {
             // Completion should never interrupt shell input.
         }
@@ -111,11 +136,11 @@ public class ShellCompleter implements Completer {
 
     private void completeSeedNames(List<Candidate> candidates) {
         var seedsDir = shell.session().doppioDirectory().resolve("seeds");
-        if (!java.nio.file.Files.isDirectory(seedsDir)) {
+        if (!Files.isDirectory(seedsDir)) {
             return;
         }
-        try (var files = java.nio.file.Files.walk(seedsDir, 1)) {
-            files.filter(java.nio.file.Files::isRegularFile)
+        try (var files = Files.walk(seedsDir, 1)) {
+            files.filter(Files::isRegularFile)
                 .map(path -> path.getFileName().toString())
                 .filter(name -> name.endsWith(".seed"))
                 .map(name -> name.substring(0, name.length() - ".seed".length()))

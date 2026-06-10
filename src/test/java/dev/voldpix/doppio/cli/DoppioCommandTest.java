@@ -107,6 +107,7 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(out.toString())
+            .contains("Brewing recipe: auth/login")
             .contains("GET")
             .contains("Login request")
             .contains("Request Details")
@@ -944,6 +945,132 @@ class DoppioCommandTest {
         assertThat(exit).isEqualTo(1);
         assertThat(looseFile).exists();
         assertThat(err.toString()).contains("rm only removes files under .doppio/recipes");
+    }
+
+    @Test
+    void mvMovesRecipeAndCreatesDestinationFolders() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        var source = tempDir.resolve(".doppio/recipes/auth/login.dopo");
+        var destination = tempDir.resolve(".doppio/recipes/session/auth/login-v2.dopo");
+        Files.writeString(source, "GET https://example.com/login");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("mv", "auth/login", "session/auth/login-v2");
+
+        assertThat(exit).isZero();
+        assertThat(source).doesNotExist();
+        assertThat(destination).exists();
+        assertThat(Files.readString(destination)).isEqualTo("GET https://example.com/login");
+        assertThat(out.toString())
+            .contains("Recipe moved")
+            .contains("auth/login.dopo")
+            .contains("session/auth/login-v2.dopo");
+    }
+
+    @Test
+    void cpCopiesRecipeWithoutRemovingSource() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        var source = tempDir.resolve(".doppio/recipes/auth/login.dopo");
+        var destination = tempDir.resolve(".doppio/recipes/auth/login-copy.dopo");
+        Files.writeString(source, "GET https://example.com/login");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("cp", "auth/login", "auth/login-copy");
+
+        assertThat(exit).isZero();
+        assertThat(source).exists();
+        assertThat(destination).exists();
+        assertThat(Files.readString(destination)).isEqualTo("GET https://example.com/login");
+        assertThat(out.toString())
+            .contains("Recipe copied")
+            .contains("auth/login.dopo")
+            .contains("auth/login-copy.dopo");
+    }
+
+    @Test
+    void renameKeepsRecipeInSameFolder() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        var source = tempDir.resolve(".doppio/recipes/auth/login.dopo");
+        var destination = tempDir.resolve(".doppio/recipes/auth/login-v2.dopo");
+        Files.writeString(source, "GET https://example.com/login");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("rename", "auth/login", "login-v2");
+
+        assertThat(exit).isZero();
+        assertThat(source).doesNotExist();
+        assertThat(destination).exists();
+        assertThat(Files.readString(destination)).isEqualTo("GET https://example.com/login");
+        assertThat(out.toString())
+            .contains("Recipe renamed")
+            .contains("auth/login.dopo")
+            .contains("auth/login-v2.dopo");
+    }
+
+    @Test
+    void fileOpsRejectOverwritesAndUnsafeDestinations() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        var source = tempDir.resolve(".doppio/recipes/auth/login.dopo");
+        var existing = tempDir.resolve(".doppio/recipes/auth/existing.dopo");
+        Files.writeString(source, "GET https://example.com/login");
+        Files.writeString(existing, "GET https://example.com/existing");
+        var err = new StringWriter();
+
+        var overwriteExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("mv", "auth/login", "auth/existing");
+
+        assertThat(overwriteExit).isEqualTo(1);
+        assertThat(source).exists();
+        assertThat(existing).exists();
+        assertThat(err.toString()).contains("Recipe already exists: auth/existing.dopo");
+
+        err.getBuffer().setLength(0);
+        var prefixedExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("cp", "auth/login", "recipes/copy");
+
+        assertThat(prefixedExit).isEqualTo(1);
+        assertThat(err.toString()).contains("without .doppio/recipes");
+
+        err.getBuffer().setLength(0);
+        var renameExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("rename", "auth/login", "other/login-v2");
+
+        assertThat(renameExit).isEqualTo(1);
+        assertThat(source).exists();
+        assertThat(err.toString()).contains("Rename target must be a file name");
     }
 
     @Test

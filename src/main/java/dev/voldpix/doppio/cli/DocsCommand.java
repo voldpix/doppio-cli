@@ -107,6 +107,9 @@ public class DocsCommand implements Callable<Integer> {
           doppio run auth/login --save
           doppio clean
           doppio rm auth/login
+          doppio mv auth/login auth/session/login
+          doppio cp auth/login auth/login-copy
+          doppio rename auth/login login-v2
 
         Interactive Shell
           doppio shell opens a command-driven REPL for one-terminal request work.
@@ -141,6 +144,9 @@ public class DocsCommand implements Callable<Integer> {
             format [request-or-folder]
             check [request-or-folder] [--env NAME]
             rm [request]
+            mv [request] DESTINATION | move [request] DESTINATION
+            cp [request] DESTINATION
+            rename [request] NAME
 
           Shell seed commands:
             seed list
@@ -191,7 +197,13 @@ public class DocsCommand implements Callable<Integer> {
           ls lists request names, paths, and parse markers.
           show reads request structure before hydration.
           preview hydrates variables and prepares the final request without network execution.
-          run executes the request and includes response status, headers, body, and duration.
+          run executes the request and includes brewing status, response status, headers, body, and duration.
+
+        File Management
+          doppio mv auth/login auth/session/login moves a recipe and creates destination folders.
+          doppio cp auth/login auth/login-copy copies a recipe without removing the source.
+          doppio rename auth/login login-v2 renames a recipe inside its current folder.
+          File operations stay inside .doppio/recipes and refuse overwrites.
 
         Formatting
           doppio format formats all .dopo files under .doppio/recipes.

@@ -10,6 +10,7 @@ import dev.voldpix.doppio.list.RequestListService;
 import dev.voldpix.doppio.pipeline.DoppioPipeline;
 import dev.voldpix.doppio.request.RequestFileCreator;
 import dev.voldpix.doppio.request.RequestFileInspector;
+import dev.voldpix.doppio.request.RequestFileOperator;
 import dev.voldpix.doppio.request.RequestFileRemover;
 import dev.voldpix.doppio.report.ReportCleaner;
 import dev.voldpix.doppio.report.RunReportWriter;
@@ -78,6 +79,9 @@ public class DoppioCommand implements Callable<Integer> {
         commandLine.addSubcommand("shell", new ShellCommand(workingDirectory, environment, pipeline, transport, out, err));
         commandLine.addSubcommand("clean", new CleanCommand(workingDirectory, new ReportCleaner(), out, err));
         commandLine.addSubcommand("rm", new RmCommand(workingDirectory, new RequestFileRemover(), out, err));
+        commandLine.addSubcommand("mv", new MvCommand(workingDirectory, new RequestFileOperator(), out, err));
+        commandLine.addSubcommand("cp", new CpCommand(workingDirectory, new RequestFileOperator(), out, err));
+        commandLine.addSubcommand("rename", new RenameCommand(workingDirectory, new RequestFileOperator(), out, err));
         commandLine.addSubcommand("docs", new DocsCommand(out));
         commandLine.setOut(out);
         commandLine.setErr(err);
