@@ -75,6 +75,7 @@ public class DoppioCommand implements Callable<Integer> {
         commandLine.addSubcommand("format", new FormatCommand(workingDirectory, new DopoFormatService(), out, err));
         commandLine.addSubcommand("check", new CheckCommand(workingDirectory, environment, new DoppioCheckService(pipeline), out, err));
         commandLine.addSubcommand("doctor", new DoctorCommand(workingDirectory, environment, new DoppioDoctorService(new DoppioCheckService(pipeline)), out));
+        commandLine.addSubcommand("shell", new ShellCommand(workingDirectory, environment, pipeline, transport, out, err));
         commandLine.addSubcommand("clean", new CleanCommand(workingDirectory, new ReportCleaner(), out, err));
         commandLine.addSubcommand("rm", new RmCommand(workingDirectory, new RequestFileRemover(), out, err));
         commandLine.addSubcommand("docs", new DocsCommand(out));
