@@ -107,8 +107,10 @@ public class DocsCommand implements Callable<Integer> {
             doppio:[dev]>
 
           The shell uses JLine for arrows, history, and local tab completion.
+          The prompt, env state, edit paths, and run result are colorized unless NO_COLOR is set.
           History is stored in ~/.config/doppio/history.
           Recent projects are stored in ~/.config/doppio/status.json.
+          User shell config is stored in ~/.config/doppio/config.json.
 
           Request lookup supports exact shorthand and stem-only matching:
             run auth/login
@@ -141,9 +143,15 @@ public class DocsCommand implements Callable<Integer> {
             env list
             env use dev
             env clear
+            editor show
+            editor use nano
+            editor use "code -w"
+            editor clear
 
-          edit opens $VISUAL first, then $EDITOR. If neither is set, the shell
-          prints an editor error and keeps running.
+          Editor precedence:
+            DOPPIO_EDITOR > ~/.config/doppio/config.json > VISUAL > EDITOR > nano/vim/vi from PATH.
+          GUI editors should usually include a wait flag, for example code -w.
+          If no editor is available, the shell prints setup commands and keeps running.
 
         Generation Shortcuts
           doppio gen users/me --method GET --bearer

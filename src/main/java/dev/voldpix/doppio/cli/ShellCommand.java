@@ -56,14 +56,21 @@ public class ShellCommand implements Callable<Integer> {
         try {
             Files.createDirectories(statusStore.configDirectory());
             var shell = new DoppioShell(workingDirectory, environment, pipeline, transport, statusStore, out, err);
-            var terminal = TerminalBuilder.builder()
-                .system(true)
+            var terminalBuilder = TerminalBuilder.builder()
                 .ffm(false)
                 .jni(false)
                 .jna(false)
                 .jansi(false)
-                .dumb(true)
-                .build();
+                .color(!environment.containsKey("NO_COLOR"));
+            if (System.console() == null) {
+                terminalBuilder
+                    .system(false)
+                    .streams(System.in, System.out)
+                    .dumb(true);
+            } else {
+                terminalBuilder.system(true);
+            }
+            var terminal = terminalBuilder.build();
             var reader = LineReaderBuilder.builder()
                 .terminal(terminal)
                 .parser(new DefaultParser())

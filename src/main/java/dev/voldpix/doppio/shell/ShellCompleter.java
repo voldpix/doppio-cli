@@ -28,6 +28,7 @@ public class ShellCompleter implements Completer {
         "rm",
         "seed",
         "env",
+        "editor",
         "projects",
         "project",
         "clean",
@@ -35,6 +36,7 @@ public class ShellCompleter implements Completer {
     );
     private static final List<String> SEED_COMMANDS = List.of("list", "edit", "gen", "rm");
     private static final List<String> ENV_COMMANDS = List.of("list", "use", "clear", "edit", "gen");
+    private static final List<String> EDITOR_COMMANDS = List.of("show", "use", "clear");
 
     private final DoppioShell shell;
     private final ShellRequestResolver requestResolver;
@@ -67,6 +69,8 @@ public class ShellCompleter implements Completer {
             completeSeed(words, line.wordIndex(), candidates);
         } else if ("env".equals(command)) {
             completeEnv(words, line.wordIndex(), candidates);
+        } else if ("editor".equals(command)) {
+            completeEditor(words, line.wordIndex(), candidates);
         }
     }
 
@@ -97,6 +101,14 @@ public class ShellCompleter implements Completer {
             ENV_COMMANDS.forEach(command -> candidates.add(new Candidate(command)));
         } else if (wordIndex == 2 && words.size() > 1 && List.of("use", "edit").contains(words.get(1))) {
             completeEnvNames(candidates);
+        }
+    }
+
+    private void completeEditor(List<String> words, int wordIndex, List<Candidate> candidates) {
+        if (wordIndex == 1) {
+            EDITOR_COMMANDS.forEach(command -> candidates.add(new Candidate(command)));
+        } else if (wordIndex == 2 && words.size() > 1 && "use".equals(words.get(1))) {
+            List.of("nano", "vim", "vi", "code -w").forEach(command -> candidates.add(new Candidate(command)));
         }
     }
 

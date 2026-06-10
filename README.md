@@ -203,7 +203,7 @@ doppio shell --env dev
 doppio shell --project /Users/me/project
 ```
 
-On startup it prints the resolved `.doppio` path and then prompts as `doppio:[default]>` or `doppio:[dev]>`. Shell history is stored in `~/.config/doppio/history`. Recent project paths are stored in `~/.config/doppio/status.json` so running `doppio shell` outside a project can offer a picker. If no project can be found it exits with:
+On startup it prints the resolved `.doppio` path and then prompts as `doppio:[default]>` or `doppio:[dev]>`. The prompt, env state, edit paths, and run result are colorized unless `NO_COLOR` is set. Shell history is stored in `~/.config/doppio/history`. Recent project paths are stored in `~/.config/doppio/status.json` so running `doppio shell` outside a project can offer a picker. If no project can be found it exits with:
 
 ```text
 No Doppio project found. Navigate to a Doppio project or run doppio init first.
@@ -236,7 +236,16 @@ doppio:[dev]> run login
 doppio:[dev]> env clear
 ```
 
-`edit` uses `$VISUAL`, then `$EDITOR`. If neither is set, the shell prints an editor error and keeps running. Multiple shells can point at the same project; V1 does not add project locking.
+Editor helpers let you configure one terminal workflow once:
+
+```text
+doppio:[default]> editor show
+doppio:[default]> editor use nano
+doppio:[default]> editor use "code -w"
+doppio:[default]> editor clear
+```
+
+Editor precedence is `DOPPIO_EDITOR`, then `~/.config/doppio/config.json`, then `$VISUAL`, then `$EDITOR`, then detected `nano`, `vim`, or `vi` from `PATH`. GUI editors should usually include a wait flag, for example `code -w`. If no editor is available, the shell prints the exact setup commands and keeps running. Multiple shells can point at the same project; V1 does not add project locking.
 
 ## Checks And Expectations
 

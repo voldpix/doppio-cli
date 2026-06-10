@@ -120,6 +120,37 @@ class DoppioShellTest {
     }
 
     @Test
+    void editorCommandsPersistShowAndClearConfig() throws Exception {
+        var project = project("api");
+        var out = new StringWriter();
+        var shell = shell(project, out, new StringWriter(), new FakeTransport(), new CapturingEditor());
+
+        var exit = shell.run(reader("editor use \"code -w\"\neditor show\neditor clear\neditor show\nexit\n"), null, null);
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Editor saved: code -w")
+            .contains("Editor: code -w")
+            .contains("Editor config cleared.")
+            .contains("Editor: (not configured)");
+        assertThat(new DoppioConfigStore(tempDir.resolve("config")).read().editorCommand()).isNull();
+    }
+
+    @Test
+    void editUsesConfiguredEditor() throws Exception {
+        var project = project("api");
+        request(project, "test.dopo", "GET https://example.com");
+        var editor = new CapturingEditor();
+        var shell = shell(project, new StringWriter(), new StringWriter(), new FakeTransport(), editor);
+
+        var exit = shell.run(reader("editor use nano\nedit test\nexit\n"), null, null);
+
+        assertThat(exit).isZero();
+        assertThat(editor.opened).containsExactly(project.resolve(".doppio/requests/test.dopo").toAbsolutePath().normalize());
+        assertThat(editor.editorCommands).containsExactly("nano");
+    }
+
+    @Test
     void promptDisplaysDefaultWhenNoEnvSelected() {
         var session = new ShellSession(tempDir, tempDir.resolve(".doppio"), null);
 
@@ -153,10 +184,11 @@ class DoppioShellTest {
     ) {
         return new DoppioShell(
             workingDirectory,
-            Map.of(),
+            Map.of("NO_COLOR", "1", "PATH", ""),
             pipeline(transport),
             transport,
             statusStore,
+            new DoppioConfigStore(statusStore.configDirectory()),
             new dev.voldpix.doppio.pipeline.DoppioProjectResolver(),
             new ShellRequestResolver(),
             new ShellCommandParser(),
@@ -164,6 +196,7 @@ class DoppioShellTest {
             new RunReportWriter(new ConsoleFormatter(false), java.time.Clock.systemUTC()),
             new RequestFileCreator(),
             editor,
+            new ShellStyler(false),
             new PrintWriter(out, true),
             new PrintWriter(err, true)
         );
@@ -220,10 +253,12 @@ class DoppioShellTest {
 
     private static class CapturingEditor extends ExternalEditor {
         private final List<Path> opened = new ArrayList<>();
+        private final List<String> editorCommands = new ArrayList<>();
 
         @Override
-        public void open(Path file, Map<String, String> environment) throws DoppioException {
+        public void open(Path file, Map<String, String> environment, DoppioUserConfig config) throws DoppioException {
             opened.add(file.toAbsolutePath().normalize());
+            editorCommands.add(config.editorCommand());
         }
     }
 }
