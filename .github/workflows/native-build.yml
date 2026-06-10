@@ -77,6 +77,9 @@ jobs:
           ls -lh dist/native/
 
       - name: Sign executable (macOS)
+        # Ad-hoc signing only; Gatekeeper may still warn users.
+        # To bypass on local installs: xattr -d com.apple.quarantine doppio
+        # For full trust, notarization with an Apple Developer account ($99/yr) is required.
         if: matrix.os == 'macos-latest'
         run: codesign --sign - --force --verbose dist/native/${{ matrix.executable }}
 
