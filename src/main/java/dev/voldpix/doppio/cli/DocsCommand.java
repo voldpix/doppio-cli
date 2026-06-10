@@ -81,6 +81,7 @@ public class DocsCommand implements Callable<Integer> {
           doppio check
           doppio check auth/login
           doppio check auth
+          doppio doctor
           doppio run auth/login --save
           doppio clean
           doppio rm auth/login
@@ -93,12 +94,19 @@ public class DocsCommand implements Callable<Integer> {
           doppio gen export/users --body csv
           doppio gen notes/ping --body text
           doppio gen jobs/start --method POST --body none
+          doppio gen auth/login --from-curl "curl -H 'Accept: application/json' https://api.example.com/auth/me"
 
           Defaults:
             no --method means POST
             GET and DELETE default to no body
             POST, PUT, and PATCH default to JSON
             --bearer adds Authorization=Bearer {{TOKEN}}
+
+          Curl import:
+            --from-curl supports common curl examples with URL, --url, -X/--request,
+            -H/--header, and -d/--data/--data-raw/--data-binary.
+            It maps simple JSON, text, and URL-encoded form bodies into Doppio body blocks.
+            Advanced curl flags, multipart, cookies, auth helpers, and shell expansion are not imported.
 
         JSON Output For Agents
           doppio ls --json
@@ -128,6 +136,7 @@ public class DocsCommand implements Callable<Integer> {
         Notes For Coding Agents
           Prefer list or ls first to discover available requests.
           Use show before editing a request file.
+          Use doctor after cloning or generating a project to catch setup and request issues.
           Use check before run when validating generated or edited request files.
           Use preview --json before run --json when changing variables, headers, query params, or bodies.
           Non-2xx HTTP responses still print output and exit with failure.

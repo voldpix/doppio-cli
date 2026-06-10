@@ -3,6 +3,7 @@ package dev.voldpix.doppio.cli;
 import dev.voldpix.doppio.check.DoppioCheckService;
 import dev.voldpix.doppio.console.ConsoleFormatter;
 import dev.voldpix.doppio.console.JsonFormatter;
+import dev.voldpix.doppio.doctor.DoppioDoctorService;
 import dev.voldpix.doppio.format.DopoFormatService;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.list.RequestListService;
@@ -73,6 +74,7 @@ public class DoppioCommand implements Callable<Integer> {
         commandLine.addSubcommand("list", new ListCommand(workingDirectory, new RequestListService(), jsonFormatter, out, err));
         commandLine.addSubcommand("format", new FormatCommand(workingDirectory, new DopoFormatService(), out, err));
         commandLine.addSubcommand("check", new CheckCommand(workingDirectory, environment, new DoppioCheckService(pipeline), out, err));
+        commandLine.addSubcommand("doctor", new DoctorCommand(workingDirectory, environment, new DoppioDoctorService(new DoppioCheckService(pipeline)), out));
         commandLine.addSubcommand("clean", new CleanCommand(workingDirectory, new ReportCleaner(), out, err));
         commandLine.addSubcommand("rm", new RmCommand(workingDirectory, new RequestFileRemover(), out, err));
         commandLine.addSubcommand("docs", new DocsCommand(out));

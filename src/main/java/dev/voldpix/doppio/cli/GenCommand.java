@@ -1,5 +1,6 @@
 package dev.voldpix.doppio.cli;
 
+import dev.voldpix.doppio.curl.CurlImportParser;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.ErrorKind;
 import dev.voldpix.doppio.model.HttpMethod;
@@ -22,7 +23,7 @@ public class GenCommand implements Callable<Integer> {
     private Path file;
 
     @Option(names = "--method", paramLabel = "METHOD", description = "HTTP method: GET, POST, PUT, PATCH, DELETE.")
-    private String method = "POST";
+    private String method;
 
     @Option(names = "--body", paramLabel = "KIND", description = "Body kind: none, json, text, csv, form.")
     private String body;
@@ -36,14 +37,29 @@ public class GenCommand implements Callable<Integer> {
     @Option(names = {"-q", "--query"}, paramLabel = "KEY[=VALUE]", description = "Query parameter to add to the generated request.")
     private List<String> queryParams = new ArrayList<>();
 
+    @Option(names = "--from-curl", paramLabel = "CURL", description = "Create a request from a basic curl command.")
+    private String fromCurl;
+
     private final Path workingDirectory;
     private final RequestFileCreator creator;
+    private final CurlImportParser curlImportParser;
     private final PrintWriter out;
     private final PrintWriter err;
 
     public GenCommand(Path workingDirectory, RequestFileCreator creator, PrintWriter out, PrintWriter err) {
+        this(workingDirectory, creator, new CurlImportParser(), out, err);
+    }
+
+    public GenCommand(
+        Path workingDirectory,
+        RequestFileCreator creator,
+        CurlImportParser curlImportParser,
+        PrintWriter out,
+        PrintWriter err
+    ) {
         this.workingDirectory = workingDirectory;
         this.creator = creator;
+        this.curlImportParser = curlImportParser;
         this.out = out;
         this.err = err;
     }
@@ -51,7 +67,9 @@ public class GenCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            var created = creator.create(file, workingDirectory, options());
+            var created = fromCurl == null
+                ? creator.create(file, workingDirectory, options())
+                : creator.createFromCurl(file, workingDirectory, curlImport());
             out.println("Created request");
             out.println("  File: " + created.relativePath());
             out.println("  Path: " + created.requestFile());
@@ -65,13 +83,22 @@ public class GenCommand implements Callable<Integer> {
     }
 
     private RequestGenerationOptions options() throws DoppioException {
-        var parsedMethod = HttpMethod.parse(method)
-            .orElseThrow(() -> new DoppioException(ErrorKind.FILE, "Unsupported method: " + method));
+        var parsedMethod = method == null
+            ? HttpMethod.POST
+            : HttpMethod.parse(method)
+                .orElseThrow(() -> new DoppioException(ErrorKind.FILE, "Unsupported method: " + method));
         var parsedBody = body == null
             ? null
             : GeneratedBodyKind.parse(body)
                 .orElseThrow(() -> new DoppioException(ErrorKind.FILE, "Unsupported body kind: " + body));
 
         return new RequestGenerationOptions(parsedMethod, parsedBody, bearer, headers, queryParams);
+    }
+
+    private dev.voldpix.doppio.curl.CurlImport curlImport() throws DoppioException {
+        if (method != null || body != null || bearer || !headers.isEmpty() || !queryParams.isEmpty()) {
+            throw new DoppioException(ErrorKind.FILE, "--from-curl cannot be combined with --method, --body, --bearer, -H, or -q");
+        }
+        return curlImportParser.parse(fromCurl);
     }
 }
