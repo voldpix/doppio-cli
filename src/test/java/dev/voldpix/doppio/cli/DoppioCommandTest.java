@@ -173,6 +173,25 @@ class DoppioCommandTest {
     }
 
     @Test
+    void shellHelpIsAvailable() {
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("shell", "--help");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Usage: doppio shell")
+            .contains("--project")
+            .contains("--env");
+    }
+
+    @Test
     void runPrintsExpectationResults() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests"));
         Files.writeString(tempDir.resolve(".doppio/requests/expect.dopo"), """

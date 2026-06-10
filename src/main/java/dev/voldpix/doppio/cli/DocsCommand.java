@@ -79,6 +79,9 @@ public class DocsCommand implements Callable<Integer> {
 
         Common Commands
           doppio init
+          doppio shell
+          doppio shell --env dev
+          doppio shell --project /path/to/project
           doppio gen --env dev
           doppio gen auth/login
           doppio list
@@ -96,6 +99,51 @@ public class DocsCommand implements Callable<Integer> {
           doppio run auth/login --save
           doppio clean
           doppio rm auth/login
+
+        Interactive Shell
+          doppio shell opens a command-driven REPL for one-terminal request work.
+          On startup it prints the resolved .doppio path and prompts as:
+            doppio:[default]>
+            doppio:[dev]>
+
+          The shell uses JLine for arrows, history, and local tab completion.
+          History is stored in ~/.config/doppio/history.
+          Recent projects are stored in ~/.config/doppio/status.json.
+
+          Request lookup supports exact shorthand and stem-only matching:
+            run auth/login
+            run login
+
+          If multiple requests match, the shell asks for a numbered choice.
+          Running shell outside a project uses the recent project picker when available.
+          If no project is found, it prints:
+            No Doppio project found. Navigate to a Doppio project or run doppio init first.
+
+          Shell request commands:
+            ls | list
+            gen <request> [options]
+            edit [request]
+            show [request]
+            preview [request] [--env NAME]
+            run [request] [--env NAME]
+            body
+            save
+            format [request-or-folder]
+            check [request-or-folder] [--env NAME]
+            rm [request]
+
+          Shell seed and env commands:
+            seed list
+            seed edit default
+            seed gen dev
+            seed edit dev
+            seed rm dev
+            env list
+            env use dev
+            env clear
+
+          edit opens $VISUAL first, then $EDITOR. If neither is set, the shell
+          prints an editor error and keeps running.
 
         Generation Shortcuts
           doppio gen users/me --method GET --bearer
