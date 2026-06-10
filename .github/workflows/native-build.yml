@@ -65,7 +65,6 @@ jobs:
           
           native-image \
             --no-fallback \
-            -H:+UnlockExperimentalVMOptions \
             -H:+ReportExceptionStackTraces \
             -H:Path=$(pwd)/dist/native \
             -jar "$jar"
