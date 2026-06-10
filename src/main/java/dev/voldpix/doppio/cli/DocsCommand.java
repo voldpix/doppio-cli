@@ -17,6 +17,8 @@ public class DocsCommand implements Callable<Integer> {
         Project Layout
           .doppio/
             default.seed
+            envs/
+              dev.seed
             requests/
               example.dopo
               auth/login.dopo
@@ -33,12 +35,20 @@ public class DocsCommand implements Callable<Integer> {
 
         Variables
           Use {{KEY}} placeholders in URLs, headers, query params, and bodies.
-          Precedence: request @var > default.seed > OS environment.
+          Precedence: request @var > selected env seed > default.seed > OS environment.
 
           Example:
             @var EMAIL=me@example.com
             GET {{BASE_URL}}/users/me
             -h Authorization=Bearer {{TOKEN}}
+
+        Environments
+          doppio gen --env dev creates .doppio/envs/dev.seed.
+          Use --env with run, preview, check, and doctor:
+            doppio preview auth/login --env dev
+            doppio run auth/login --env dev
+            doppio check --env dev
+            doppio doctor --env dev
 
         Request Files
           @name Login user
@@ -69,19 +79,20 @@ public class DocsCommand implements Callable<Integer> {
 
         Common Commands
           doppio init
+          doppio gen --env dev
           doppio gen auth/login
           doppio list
           doppio ls
           doppio show auth/login
-          doppio preview auth/login
-          doppio run auth/login
+          doppio preview auth/login --env dev
+          doppio run auth/login --env dev
           doppio format
           doppio format auth/login
           doppio format auth
-          doppio check
-          doppio check auth/login
-          doppio check auth
-          doppio doctor
+          doppio check --env dev
+          doppio check auth/login --env dev
+          doppio check auth --env dev
+          doppio doctor --env dev
           doppio run auth/login --save
           doppio clean
           doppio rm auth/login
@@ -111,8 +122,8 @@ public class DocsCommand implements Callable<Integer> {
         JSON Output For Agents
           doppio ls --json
           doppio show auth/login --json
-          doppio preview auth/login --json
-          doppio run auth/login --json
+          doppio preview auth/login --env dev --json
+          doppio run auth/login --env dev --json
 
           ls lists request names, paths, and parse markers.
           show reads request structure before hydration.

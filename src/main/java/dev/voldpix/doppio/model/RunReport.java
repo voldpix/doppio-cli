@@ -8,10 +8,20 @@ public record RunReport(
     Path requestFile,
     PreparedRequest request,
     DoppioResponse response,
-    ExpectationReport expectations
+    ExpectationReport expectations,
+    String environmentName
 ) {
     public RunReport(Path requestFile, PreparedRequest request, DoppioResponse response) {
-        this(requestFile, request, response, ExpectationReport.empty());
+        this(requestFile, request, response, ExpectationReport.empty(), null);
+    }
+
+    public RunReport(
+        Path requestFile,
+        PreparedRequest request,
+        DoppioResponse response,
+        ExpectationReport expectations
+    ) {
+        this(requestFile, request, response, expectations, null);
     }
 
     public RunReport {

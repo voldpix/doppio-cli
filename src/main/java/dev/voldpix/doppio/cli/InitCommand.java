@@ -51,8 +51,10 @@ public class InitCommand implements Callable<Integer> {
     @Override
     public Integer call() throws IOException {
         var doppioDir = workingDirectory.resolve(".doppio").toAbsolutePath().normalize();
+        var envsDir = doppioDir.resolve("envs");
         var requestsDir = doppioDir.resolve("requests");
         Files.createDirectories(doppioDir);
+        Files.createDirectories(envsDir);
         Files.createDirectories(requestsDir);
 
         writeIfMissing(doppioDir.resolve("default.seed"), DEFAULT_SEED);
@@ -63,6 +65,7 @@ public class InitCommand implements Callable<Integer> {
         out.println();
         out.println(doppioDir);
         out.println("|-- default.seed");
+        out.println("|-- envs/");
         out.println("`-- requests/");
         out.println("    |-- example.dopo");
         out.println("    `-- test.dopo");

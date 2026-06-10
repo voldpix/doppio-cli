@@ -19,7 +19,7 @@ import java.util.concurrent.Callable;
 
 @Command(name = "gen", mixinStandardHelpOptions = true, description = "Create a request file under .doppio/requests.")
 public class GenCommand implements Callable<Integer> {
-    @Parameters(index = "0", paramLabel = "FILE", description = "Request path to create, with or without .dopo.")
+    @Parameters(index = "0", arity = "0..1", paramLabel = "FILE", description = "Request path to create, with or without .dopo.")
     private Path file;
 
     @Option(names = "--method", paramLabel = "METHOD", description = "HTTP method: GET, POST, PUT, PATCH, DELETE.")
@@ -39,6 +39,9 @@ public class GenCommand implements Callable<Integer> {
 
     @Option(names = "--from-curl", paramLabel = "CURL", description = "Create a request from a basic curl command.")
     private String fromCurl;
+
+    @Option(names = "--env", paramLabel = "NAME", description = "Create .doppio/envs/NAME.seed.")
+    private String envName;
 
     private final Path workingDirectory;
     private final RequestFileCreator creator;
@@ -67,12 +70,22 @@ public class GenCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            var created = fromCurl == null
-                ? creator.create(file, workingDirectory, options())
-                : creator.createFromCurl(file, workingDirectory, curlImport());
-            out.println("Created request");
-            out.println("  File: " + created.relativePath());
-            out.println("  Path: " + created.requestFile());
+            if (envName != null) {
+                var created = createEnvironment();
+                out.println("Created environment");
+                out.println("  File: " + created.relativePath());
+                out.println("  Path: " + created.requestFile());
+            } else {
+                if (file == null) {
+                    throw new DoppioException(ErrorKind.FILE, "Request filename is required");
+                }
+                var created = fromCurl == null
+                    ? creator.create(file, workingDirectory, options())
+                    : creator.createFromCurl(file, workingDirectory, curlImport());
+                out.println("Created request");
+                out.println("  File: " + created.relativePath());
+                out.println("  Path: " + created.requestFile());
+            }
             out.flush();
             return 0;
         } catch (DoppioException e) {
@@ -80,6 +93,13 @@ public class GenCommand implements Callable<Integer> {
             err.flush();
             return 1;
         }
+    }
+
+    private dev.voldpix.doppio.request.RequestFileCreation createEnvironment() throws DoppioException {
+        if (file != null || method != null || body != null || bearer || !headers.isEmpty() || !queryParams.isEmpty() || fromCurl != null) {
+            throw new DoppioException(ErrorKind.FILE, "--env cannot be combined with request file or request generation options");
+        }
+        return creator.createEnvironment(envName, workingDirectory);
     }
 
     private RequestGenerationOptions options() throws DoppioException {

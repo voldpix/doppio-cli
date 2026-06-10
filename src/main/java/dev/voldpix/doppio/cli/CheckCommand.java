@@ -2,8 +2,10 @@ package dev.voldpix.doppio.cli;
 
 import dev.voldpix.doppio.check.CheckResult;
 import dev.voldpix.doppio.check.DoppioCheckService;
+import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.model.DoppioException;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.io.PrintWriter;
@@ -15,6 +17,9 @@ import java.util.concurrent.Callable;
 public class CheckCommand implements Callable<Integer> {
     @Parameters(index = "0", arity = "0..1", paramLabel = "FILE_OR_FOLDER", description = "Optional request file or folder shorthand.")
     private Path target;
+
+    @Option(names = "--env", paramLabel = "NAME", description = "Use .doppio/envs/NAME.seed over default.seed.")
+    private String envName;
 
     private final Path workingDirectory;
     private final Map<String, String> environment;
@@ -39,8 +44,12 @@ public class CheckCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            var summary = checkService.check(target, workingDirectory, environment);
+            var selectedEnvironment = DoppioEnvironment.of(envName);
+            var summary = checkService.check(target, workingDirectory, environment, selectedEnvironment);
             out.println("Doppio Check");
+            if (selectedEnvironment.selected()) {
+                out.println("Env: " + selectedEnvironment.name());
+            }
             out.println();
             out.println("Valid: " + summary.validCount());
             out.println("Failed: " + summary.failedCount());

@@ -1,6 +1,7 @@
 package dev.voldpix.doppio.doctor;
 
 import dev.voldpix.doppio.check.DoppioCheckService;
+import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.pipeline.DoppioProjectResolver;
 
@@ -8,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Map;
 
 public class DoppioDoctorService {
@@ -24,6 +26,15 @@ public class DoppioDoctorService {
     }
 
     public DoctorReport inspect(Path workingDirectory, Map<String, String> environment) {
+        return inspect(workingDirectory, environment, DoppioEnvironment.none());
+    }
+
+    public DoctorReport inspect(
+        Path workingDirectory,
+        Map<String, String> environment,
+        DoppioEnvironment selectedEnvironment
+    ) {
+        selectedEnvironment = selectedEnvironment == null ? DoppioEnvironment.none() : selectedEnvironment;
         var cwd = workingDirectory.toAbsolutePath().normalize();
         var findings = new ArrayList<DoctorFinding>();
         var doppioDir = projectResolver.findDoppioDirectory(cwd);
@@ -49,6 +60,8 @@ public class DoppioDoctorService {
             findings.add(warn("seed", "No seed file found; only OS environment variables are available"));
         }
 
+        var selectedEnvAvailable = checkEnvironments(projectDir, selectedEnvironment, findings);
+
         var requestsDir = projectDir.resolve("requests");
         if (!Files.isDirectory(requestsDir)) {
             findings.add(fail("requests", "requests folder not found: " + requestsDir));
@@ -63,8 +76,60 @@ public class DoppioDoctorService {
             findings.add(pass("requests", requestCount + " request file(s) found"));
         }
 
-        checkRequests(cwd, environment, findings);
+        if (selectedEnvAvailable) {
+            checkRequests(cwd, environment, selectedEnvironment, findings);
+        }
         return new DoctorReport(projectDir, findings);
+    }
+
+    private boolean checkEnvironments(
+        Path projectDir,
+        DoppioEnvironment selectedEnvironment,
+        ArrayList<DoctorFinding> findings
+    ) {
+        var envsDir = projectDir.resolve("envs");
+        if (!Files.isDirectory(envsDir)) {
+            findings.add(warn("env", "envs folder not found; create one with `doppio gen --env dev`"));
+            if (selectedEnvironment.selected()) {
+                findings.add(fail("env", "Selected env not found: " + selectedEnvironment.name()));
+                return false;
+            }
+            return true;
+        }
+
+        var envNames = environmentNames(envsDir, findings);
+        if (envNames.isEmpty()) {
+            findings.add(pass("env", "envs folder found; no env files yet"));
+        } else {
+            findings.add(pass("env", envNames.size() + " env file(s) found: " + String.join(", ", envNames)));
+        }
+
+        if (selectedEnvironment.selected()) {
+            var envFile = envsDir.resolve(selectedEnvironment.fileName());
+            if (Files.isRegularFile(envFile)) {
+                findings.add(pass("env", "Selected env found: " + selectedEnvironment.name()));
+                return true;
+            }
+            findings.add(fail("env", "Selected env not found: " + selectedEnvironment.name() + " (" + envFile + ")"));
+            return false;
+        }
+
+        return true;
+    }
+
+    private java.util.List<String> environmentNames(Path envsDir, ArrayList<DoctorFinding> findings) {
+        try (var files = Files.walk(envsDir, 1)) {
+            return files
+                .filter(Files::isRegularFile)
+                .filter(file -> file.getFileName().toString().endsWith(".seed"))
+                .map(file -> file.getFileName().toString())
+                .map(name -> name.substring(0, name.length() - ".seed".length()))
+                .sorted(Comparator.naturalOrder())
+                .toList();
+        } catch (IOException e) {
+            findings.add(fail("env", "Unable to list env files: " + e.getMessage()));
+            return java.util.List.of();
+        }
     }
 
     private long countRequests(Path requestsDir, ArrayList<DoctorFinding> findings) {
@@ -79,9 +144,14 @@ public class DoppioDoctorService {
         }
     }
 
-    private void checkRequests(Path workingDirectory, Map<String, String> environment, ArrayList<DoctorFinding> findings) {
+    private void checkRequests(
+        Path workingDirectory,
+        Map<String, String> environment,
+        DoppioEnvironment selectedEnvironment,
+        ArrayList<DoctorFinding> findings
+    ) {
         try {
-            var summary = checkService.check(null, workingDirectory, environment);
+            var summary = checkService.check(null, workingDirectory, environment, selectedEnvironment);
             if (summary.hasFailures()) {
                 findings.add(fail("check", summary.failedCount() + " request file(s) failed validation"));
                 summary.results().stream()

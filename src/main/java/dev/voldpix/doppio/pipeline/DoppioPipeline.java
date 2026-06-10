@@ -2,6 +2,7 @@ package dev.voldpix.doppio.pipeline;
 
 import dev.voldpix.doppio.body.BodyProcessor;
 import dev.voldpix.doppio.dsl.DslProcessor;
+import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.expect.ExpectationEvaluator;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.http.JavaHttpTransport;
@@ -89,21 +90,38 @@ public class DoppioPipeline {
 
     public RunReport run(Path requestFile, Path workingDirectory, Map<String, String> environment)
         throws DoppioException {
-        var preview = preview(requestFile, workingDirectory, environment);
+        return run(requestFile, workingDirectory, environment, DoppioEnvironment.none());
+    }
+
+    public RunReport run(
+        Path requestFile,
+        Path workingDirectory,
+        Map<String, String> environment,
+        DoppioEnvironment selectedEnvironment
+    ) throws DoppioException {
+        var preview = preview(requestFile, workingDirectory, environment, selectedEnvironment);
         var response = transport.execute(preview.request(), timeout);
         var expectationReport = expectationEvaluator.evaluate(preview.expectations(), response);
 
-        return new RunReport(preview.requestFile(), preview.request(), response, expectationReport);
+        return new RunReport(preview.requestFile(), preview.request(), response, expectationReport, preview.environmentName());
     }
 
     public PreviewReport preview(Path requestFile, Path workingDirectory, Map<String, String> environment)
         throws DoppioException {
+        return preview(requestFile, workingDirectory, environment, DoppioEnvironment.none());
+    }
+
+    public PreviewReport preview(
+        Path requestFile,
+        Path workingDirectory,
+        Map<String, String> environment,
+        DoppioEnvironment selectedEnvironment
+    ) throws DoppioException {
+        selectedEnvironment = selectedEnvironment == null ? DoppioEnvironment.none() : selectedEnvironment;
         var resolution = requestFileResolver.resolve(requestFile, workingDirectory);
         var rawContent = readRequestFile(resolution.requestFile());
         var metadata = dslProcessor.parseMetadata(rawContent);
-        var seedValues = resolution.seedFile() == null
-            ? Map.<String, String>of()
-            : seedFileLoader.loadIfExists(resolution.seedFile());
+        var seedValues = loadSeedValues(resolution, selectedEnvironment);
         var hydratableContent = removeLocalVariableLines(rawContent);
         var hydratedContent = templateEngine.hydrate(hydratableContent, mergeVariables(environment, seedValues, metadata.variables()));
         var hydratedInspection = dslProcessor.processWithMetadata(hydratedContent);
@@ -117,8 +135,36 @@ public class DoppioPipeline {
             preparedRequest,
             bodyKind,
             processedBody,
-            hydratedInspection.metadata().expectations()
+            hydratedInspection.metadata().expectations(),
+            selectedEnvironment.selected() ? selectedEnvironment.name() : null
         );
+    }
+
+    private Map<String, String> loadSeedValues(
+        RequestResolution resolution,
+        DoppioEnvironment selectedEnvironment
+    ) throws DoppioException {
+        if (resolution.seedFile() == null) {
+            if (selectedEnvironment.selected()) {
+                throw new DoppioException(ErrorKind.SEED, "--env can only be used inside a Doppio project");
+            }
+            return Map.of();
+        }
+
+        var seedValues = new LinkedHashMap<>(seedFileLoader.loadIfExists(resolution.seedFile()));
+        if (!selectedEnvironment.selected()) {
+            return seedValues;
+        }
+
+        var envFile = resolution.seedFile().getParent().resolve("envs").resolve(selectedEnvironment.fileName());
+        if (!Files.isRegularFile(envFile)) {
+            throw new DoppioException(
+                ErrorKind.SEED,
+                "Environment not found: " + selectedEnvironment.name() + " (" + envFile + ")"
+            );
+        }
+        seedValues.putAll(seedFileLoader.loadIfExists(envFile));
+        return seedValues;
     }
 
     private String removeLocalVariableLines(String content) {

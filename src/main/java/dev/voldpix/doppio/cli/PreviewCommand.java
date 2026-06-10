@@ -2,6 +2,7 @@ package dev.voldpix.doppio.cli;
 
 import dev.voldpix.doppio.console.ConsoleFormatter;
 import dev.voldpix.doppio.console.JsonFormatter;
+import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.pipeline.DoppioPipeline;
 import picocli.CommandLine.Command;
@@ -20,6 +21,9 @@ public class PreviewCommand implements Callable<Integer> {
 
     @Option(names = "--json", description = "Print machine-readable JSON output.")
     private boolean json;
+
+    @Option(names = "--env", paramLabel = "NAME", description = "Use .doppio/envs/NAME.seed over default.seed.")
+    private String envName;
 
     private final Path workingDirectory;
     private final Map<String, String> environment;
@@ -50,7 +54,7 @@ public class PreviewCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            var report = pipeline.preview(file, workingDirectory, environment);
+            var report = pipeline.preview(file, workingDirectory, environment, DoppioEnvironment.of(envName));
             if (json) {
                 out.println(jsonFormatter.formatPreview(report));
                 out.flush();

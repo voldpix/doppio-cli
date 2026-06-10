@@ -14,11 +14,12 @@ The `.dopo` extension is optional inside a Doppio project for `run`, `show`, `pr
 
 ```bash
 doppio init
+doppio gen --env dev
 doppio gen auth/login --method POST --body json --bearer
 doppio ls
-doppio doctor
-doppio preview auth/login
-doppio run auth/login
+doppio doctor --env dev
+doppio preview auth/login --env dev
+doppio run auth/login --env dev
 ```
 
 For a machine-readable agent workflow:
@@ -26,9 +27,11 @@ For a machine-readable agent workflow:
 ```bash
 doppio ls
 doppio ls --json
+doppio doctor --env dev
+doppio check --env dev
 doppio show auth/login --json
-doppio preview auth/login --json
-doppio run auth/login --json
+doppio preview auth/login --env dev --json
+doppio run auth/login --env dev --json
 ```
 
 `doppio docs` prints the built-in syntax and command reference.
@@ -38,13 +41,16 @@ doppio run auth/login --json
 ```text
 .doppio/
   default.seed
+  envs/
+    dev.seed
+    staging.seed
   requests/
     test.dopo
     auth/
       login.dopo
 ```
 
-`doppio init` creates `.doppio/default.seed`, `.doppio/requests/example.dopo`, and `.doppio/requests/test.dopo`, then prints the full `.doppio` path as a tree.
+`doppio init` creates `.doppio/default.seed`, `.doppio/envs/`, `.doppio/requests/example.dopo`, and `.doppio/requests/test.dopo`, then prints the full `.doppio` path as a tree.
 
 `default.seed` stores default variables as `KEY=value`:
 
@@ -59,7 +65,23 @@ Blank lines and `#` comments are allowed. Whitespace around keys and values is t
 Variable precedence is:
 
 ```text
-@var in the request file > .doppio/default.seed > OS environment
+@var in the request file > selected .doppio/envs/<name>.seed > .doppio/default.seed > OS environment
+```
+
+Create env files with:
+
+```bash
+doppio gen --env dev
+doppio gen --env staging
+```
+
+Then use them for variable hydration:
+
+```bash
+doppio preview auth/login --env dev
+doppio run auth/login --env dev
+doppio check --env dev
+doppio doctor --env dev
 ```
 
 ## Request DSL
@@ -131,18 +153,19 @@ Blank lines and `#` comments inside body blocks are ignored. Doppio adds the def
 ```bash
 doppio init
 doppio docs
+doppio gen --env dev
 doppio list
 doppio ls
 doppio show auth/login
-doppio preview auth/login
-doppio run auth/login
+doppio preview auth/login --env dev
+doppio run auth/login --env dev
 doppio format
 doppio format auth/login
 doppio format auth
-doppio check
-doppio check auth/login
-doppio check auth
-doppio doctor
+doppio check --env dev
+doppio check auth/login --env dev
+doppio check auth --env dev
+doppio doctor --env dev
 doppio run auth/login --save
 doppio clean
 doppio rm auth/login
@@ -155,6 +178,8 @@ doppio rm auth/login
 `doppio preview` hydrates variables, validates the body, prepares the final URL, headers, query params, and body, then stops before HTTP execution.
 
 `doppio run` executes the request and prints request details, response status, elapsed time, response headers, and response body. Non-2xx HTTP responses still print response details and exit with failure.
+
+`--env <name>` is supported by `run`, `preview`, `check`, and `doctor`. It loads `.doppio/envs/<name>.seed` after `default.seed` and before request-local `@var` values. `show`, `format`, `list`, `rm`, `clean`, and `docs` do not need env selection.
 
 `doppio format` formats `.dopo` files. With no target it formats every request under `.doppio/requests`. With a target it accepts the same project shorthand style, so `doppio format auth/login`, `doppio format auth/login.dopo`, and `doppio format auth` work inside a Doppio project.
 
@@ -207,6 +232,7 @@ Inline JSON comments are not supported in this pass. Text and CSV bodies have tr
 
 ```bash
 doppio gen auth/login
+doppio gen --env dev
 doppio gen users/me --method GET --bearer
 doppio gen auth/login --method POST --body form --bearer
 doppio gen auth/login --body form -H X-Client=doppio -q source=doppio
@@ -236,8 +262,8 @@ Use JSON output when a script or coding agent needs stable fields instead of ter
 ```bash
 doppio ls --json
 doppio show auth/login --json
-doppio preview auth/login --json
-doppio run auth/login --json
+doppio preview auth/login --env dev --json
+doppio run auth/login --env dev --json
 ```
 
 Recommended agent flow:
@@ -245,11 +271,11 @@ Recommended agent flow:
 ```bash
 doppio ls
 doppio ls --json
-doppio doctor
-doppio check
+doppio doctor --env dev
+doppio check --env dev
 doppio show auth/login --json
-doppio preview auth/login --json
-doppio run auth/login --json
+doppio preview auth/login --env dev --json
+doppio run auth/login --env dev --json
 ```
 
 `ls --json` reports request names, paths, and parse markers. `show --json` reports raw request structure and local variables. `preview --json` reports the final hydrated request without network execution. `run --json` includes response status, headers, body, duration, and failure status for non-2xx responses.

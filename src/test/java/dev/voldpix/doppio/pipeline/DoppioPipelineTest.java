@@ -2,6 +2,7 @@ package dev.voldpix.doppio.pipeline;
 
 import dev.voldpix.doppio.body.BodyProcessor;
 import dev.voldpix.doppio.dsl.DslProcessor;
+import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.http.RequestPreparer;
 import dev.voldpix.doppio.http.TransportException;
@@ -98,6 +99,57 @@ class DoppioPipelineTest {
         assertThat(transport.lastRequest.headers())
             .contains(new dev.voldpix.doppio.model.Header("Authorization", "Bearer local-token"))
             .contains(new dev.voldpix.doppio.model.Header("Content-Type", "text/plain; charset=utf-8"));
+    }
+
+    @Test
+    void selectedEnvironmentOverridesDefaultSeedButNotLocalVariables() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/envs"));
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), """
+            BASE_URL=https://default.example.com
+            TOKEN=default-token
+            """);
+        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), """
+            BASE_URL=https://dev.example.com
+            TOKEN=dev-token
+            """);
+        Files.writeString(tempDir.resolve(".doppio/requests/env.dopo"), """
+            @var TOKEN=local-token
+            GET {{BASE_URL}}/users/me
+            -h Authorization=Bearer {{TOKEN}}
+            """);
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        var report = pipeline(transport).run(
+            Path.of("env"),
+            tempDir,
+            Map.of("BASE_URL", "https://os.example.com", "TOKEN", "os-token"),
+            DoppioEnvironment.of("dev")
+        );
+
+        assertThat(report.environmentName()).isEqualTo("dev");
+        assertThat(report.isSuccess()).isTrue();
+        assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://dev.example.com/users/me");
+        assertThat(transport.lastRequest.headers())
+            .contains(new dev.voldpix.doppio.model.Header("Authorization", "Bearer local-token"));
+    }
+
+    @Test
+    void selectedEnvironmentMustExistBeforeHttpExecution() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/env.dopo"), "GET {{BASE_URL}}/users/me");
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        assertThatThrownBy(() -> pipeline(transport).run(
+            Path.of("env"),
+            tempDir,
+            Map.of(),
+            DoppioEnvironment.of("missing")
+        ))
+            .isInstanceOf(DoppioException.class)
+            .hasMessageContaining("Environment not found: missing");
+        assertThat(transport.callCount).isZero();
     }
 
     @Test

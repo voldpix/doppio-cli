@@ -1,6 +1,7 @@
 package dev.voldpix.doppio.request;
 
 import dev.voldpix.doppio.curl.CurlImport;
+import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.ErrorKind;
 import dev.voldpix.doppio.pipeline.DoppioProjectResolver;
@@ -13,6 +14,12 @@ import java.util.List;
 import java.util.Locale;
 
 public class RequestFileCreator {
+    private static final String ENV_SEED_TEMPLATE = """
+        # Environment values override default.seed when selected with --env %s.
+        BASE_URL=https://api.%s.example.com
+        TOKEN=
+        """;
+
     private final DoppioProjectResolver projectResolver;
 
     public RequestFileCreator() {
@@ -91,6 +98,36 @@ public class RequestFileCreator {
         }
 
         return new RequestFileCreation(requestFile, relativePath);
+    }
+
+    public RequestFileCreation createEnvironment(String envName, Path workingDirectory) throws DoppioException {
+        var environment = DoppioEnvironment.of(envName);
+        if (!environment.selected()) {
+            throw new DoppioException(ErrorKind.SEED, "Environment name is required");
+        }
+
+        var doppioDir = projectResolver.findDoppioDirectory(workingDirectory.toAbsolutePath().normalize());
+        if (doppioDir == null) {
+            throw new DoppioException(ErrorKind.FILE, "No .doppio project found. Run `doppio init` first.");
+        }
+
+        var envsDir = doppioDir.resolve("envs").toAbsolutePath().normalize();
+        var envFile = envsDir.resolve(environment.fileName()).normalize();
+        if (!envFile.startsWith(envsDir)) {
+            throw new DoppioException(ErrorKind.SEED, "Environment path must stay inside .doppio/envs");
+        }
+        if (Files.exists(envFile)) {
+            throw new DoppioException(ErrorKind.SEED, "Environment already exists: " + environment.name());
+        }
+
+        try {
+            Files.createDirectories(envFile.getParent());
+            Files.writeString(envFile, ENV_SEED_TEMPLATE.formatted(environment.name(), environment.name()));
+        } catch (IOException e) {
+            throw new DoppioException(ErrorKind.SEED, "Unable to create environment: " + environment.name(), e);
+        }
+
+        return new RequestFileCreation(envFile, Path.of("envs").resolve(environment.fileName()));
     }
 
     private void validateOptions(RequestGenerationOptions options) throws DoppioException {

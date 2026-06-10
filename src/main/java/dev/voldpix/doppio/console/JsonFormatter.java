@@ -30,6 +30,8 @@ public class JsonFormatter {
         comma(json);
         field(json, "file", absolute(report.requestFile()));
         comma(json);
+        field(json, "environment", report.environmentName());
+        comma(json);
         request(json, report.request());
         comma(json);
         response(json, report.response());
@@ -51,6 +53,8 @@ public class JsonFormatter {
         field(json, "success", true);
         comma(json);
         field(json, "file", absolute(report.requestFile()));
+        comma(json);
+        field(json, "environment", report.environmentName());
         comma(json);
         request(json, report.request());
         comma(json);

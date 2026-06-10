@@ -1,6 +1,7 @@
 package dev.voldpix.doppio.check;
 
 import dev.voldpix.doppio.dsl.DslParseException;
+import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.ErrorKind;
 import dev.voldpix.doppio.pipeline.DoppioPipeline;
@@ -35,11 +36,25 @@ public class DoppioCheckService {
 
     public CheckSummary check(Path requestedPath, Path workingDirectory, Map<String, String> environment)
         throws DoppioException {
+        return check(requestedPath, workingDirectory, environment, DoppioEnvironment.none());
+    }
+
+    public CheckSummary check(
+        Path requestedPath,
+        Path workingDirectory,
+        Map<String, String> environment,
+        DoppioEnvironment selectedEnvironment
+    ) throws DoppioException {
+        selectedEnvironment = selectedEnvironment == null ? DoppioEnvironment.none() : selectedEnvironment;
         var cwd = workingDirectory.toAbsolutePath().normalize();
         var doppioDir = projectResolver.findDoppioDirectory(cwd);
+        if (selectedEnvironment.selected() && doppioDir == null) {
+            throw new DoppioException(ErrorKind.SEED, "--env can only be used inside a Doppio project");
+        }
         var files = resolveFiles(requestedPath, cwd, doppioDir);
+        var effectiveEnvironment = selectedEnvironment;
         return new CheckSummary(files.stream()
-            .map(file -> checkFile(file, cwd, doppioDir, environment))
+            .map(file -> checkFile(file, cwd, doppioDir, environment, effectiveEnvironment))
             .toList());
     }
 
@@ -86,10 +101,16 @@ public class DoppioCheckService {
         }
     }
 
-    private CheckResult checkFile(Path file, Path cwd, Path doppioDir, Map<String, String> environment) {
+    private CheckResult checkFile(
+        Path file,
+        Path cwd,
+        Path doppioDir,
+        Map<String, String> environment,
+        DoppioEnvironment selectedEnvironment
+    ) {
         var displayPath = displayPath(file, cwd, doppioDir);
         try {
-            pipeline.preview(file, cwd, environment);
+            pipeline.preview(file, cwd, environment, selectedEnvironment);
             return new CheckResult(file, displayPath, CheckStatus.VALID, null);
         } catch (DoppioException e) {
             return new CheckResult(file, displayPath, CheckStatus.FAILED, message(e));
