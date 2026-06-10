@@ -111,6 +111,8 @@ jobs:
     name: Publish GitHub Release
     needs: native
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download native archives
         uses: actions/download-artifact@v4
@@ -124,7 +126,15 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ github.token }}
           files: |
             dist/release/*.tar.gz
             dist/release/*.sha256
-          generate_release_notes: true
+          body: |
+            Doppio native release for `${{ github.ref_name }}`.
+
+            Assets:
+            - `doppio-linux-x64.tar.gz`
+            - `doppio-macos.tar.gz`
+
+            Each archive contains the `doppio` executable and a small README with build metadata.
