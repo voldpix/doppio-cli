@@ -76,6 +76,10 @@ jobs:
           echo "--- Built files ---"
           ls -lh dist/native/
 
+      - name: Sign executable (macOS)
+        if: matrix.os == 'macos-latest'
+        run: codesign --sign - --force --verbose dist/native/${{ matrix.executable }}
+
       - name: Verify executable
         run: ./dist/native/${{ matrix.executable }} --help
 
