@@ -4,6 +4,7 @@ import dev.voldpix.doppio.dsl.DslParseException;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.Header;
 import dev.voldpix.doppio.model.PreparedRequest;
+import dev.voldpix.doppio.model.PreviewReport;
 import dev.voldpix.doppio.model.RunReport;
 
 import java.io.PrintWriter;
@@ -78,6 +79,25 @@ public class ConsoleFormatter {
 
     public void printSavedReport(java.nio.file.Path savedPath, PrintWriter out) {
         out.printf("%n%s%s%s %s%n", color(GRAY), "Saved report:", color(RESET), savedPath);
+        out.flush();
+    }
+
+    public void printPreview(PreviewReport report, PrintWriter out) {
+        out.println();
+        out.println(style("Doppio Preview", BOLD));
+        if (report.request().name() != null && !report.request().name().isBlank()) {
+            out.printf("Name: %s%n", report.request().name());
+        }
+        out.printf("File: %s%n", report.requestFile());
+        out.printf("Request: %s %s%n",
+            style(report.request().method().name(), BOLD),
+            style(report.request().uri().toString(), CYAN));
+        printRequestDetails(report.request(), out);
+        if (report.hasBody()) {
+            out.println();
+            out.println(style("Request Body", BOLD));
+            out.println(report.body().content());
+        }
         out.flush();
     }
 

@@ -1,9 +1,11 @@
 package dev.voldpix.doppio.cli;
 
 import dev.voldpix.doppio.console.ConsoleFormatter;
+import dev.voldpix.doppio.console.JsonFormatter;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.request.RequestFileInspector;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.io.PrintWriter;
@@ -15,9 +17,13 @@ public class ShowCommand implements Callable<Integer> {
     @Parameters(index = "0", paramLabel = "FILE", description = "The .dopo request file to inspect.")
     private Path file;
 
+    @Option(names = "--json", description = "Print machine-readable JSON output.")
+    private boolean json;
+
     private final Path workingDirectory;
     private final RequestFileInspector inspector;
     private final ConsoleFormatter formatter;
+    private final JsonFormatter jsonFormatter;
     private final PrintWriter out;
     private final PrintWriter err;
 
@@ -25,12 +31,14 @@ public class ShowCommand implements Callable<Integer> {
         Path workingDirectory,
         RequestFileInspector inspector,
         ConsoleFormatter formatter,
+        JsonFormatter jsonFormatter,
         PrintWriter out,
         PrintWriter err
     ) {
         this.workingDirectory = workingDirectory;
         this.inspector = inspector;
         this.formatter = formatter;
+        this.jsonFormatter = jsonFormatter;
         this.out = out;
         this.err = err;
     }
@@ -38,10 +46,21 @@ public class ShowCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            print(inspector.inspect(file, workingDirectory));
+            var inspection = inspector.inspect(file, workingDirectory);
+            if (json) {
+                out.println(jsonFormatter.formatShow(inspection));
+                out.flush();
+            } else {
+                print(inspection);
+            }
             return 0;
         } catch (DoppioException e) {
-            formatter.printError(e, err);
+            if (json) {
+                err.println(jsonFormatter.formatError(e));
+                err.flush();
+            } else {
+                formatter.printError(e, err);
+            }
             return 1;
         }
     }

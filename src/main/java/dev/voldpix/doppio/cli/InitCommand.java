@@ -10,8 +10,8 @@ import java.util.concurrent.Callable;
 
 @Command(name = "init", mixinStandardHelpOptions = true, description = "Create a Doppio project scaffold.")
 public class InitCommand implements Callable<Integer> {
-    private static final String LOCAL_SEED = """
-        # Local values used by {{VARIABLE}} placeholders in .dopo files.
+    private static final String DEFAULT_SEED = """
+        # Default values used by {{VARIABLE}} placeholders in .dopo files.
         BASE_URL=https://httpbin.org
         USERNAME=voldpix
         TEST_ID=42
@@ -50,19 +50,22 @@ public class InitCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws IOException {
-        var doppioDir = workingDirectory.resolve(".doppio");
+        var doppioDir = workingDirectory.resolve(".doppio").toAbsolutePath().normalize();
         var requestsDir = doppioDir.resolve("requests");
         Files.createDirectories(doppioDir);
         Files.createDirectories(requestsDir);
 
-        writeIfMissing(doppioDir.resolve("local.seed"), LOCAL_SEED);
+        writeIfMissing(doppioDir.resolve("default.seed"), DEFAULT_SEED);
         writeIfMissing(requestsDir.resolve("example.dopo"), EXAMPLE_DOPO);
         writeIfMissing(requestsDir.resolve("test.dopo"), TEST_DOPO);
 
         out.println("Initialized Doppio project");
-        out.println("  .doppio/local.seed");
-        out.println("  .doppio/requests/example.dopo");
-        out.println("  .doppio/requests/test.dopo");
+        out.println();
+        out.println(doppioDir);
+        out.println("|-- default.seed");
+        out.println("`-- requests/");
+        out.println("    |-- example.dopo");
+        out.println("    `-- test.dopo");
         out.flush();
         return 0;
     }

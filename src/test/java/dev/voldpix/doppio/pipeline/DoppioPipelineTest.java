@@ -29,7 +29,7 @@ class DoppioPipelineTest {
     @Test
     void runHydratesSeedAndEnvironmentThenExecutesPreparedRequest() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio"));
-        Files.writeString(tempDir.resolve(".doppio/local.seed"), """
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), """
             BASE_URL=https://example.com
             USERNAME=voldpix
             """);
@@ -73,7 +73,7 @@ class DoppioPipelineTest {
     @Test
     void localVariablesOverrideSeedAndEnvironment() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/local.seed"), """
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), """
             BASE_URL=https://seed.example.com
             TOKEN=seed-token
             """);
@@ -98,6 +98,54 @@ class DoppioPipelineTest {
         assertThat(transport.lastRequest.headers())
             .contains(new dev.voldpix.doppio.model.Header("Authorization", "Bearer local-token"))
             .contains(new dev.voldpix.doppio.model.Header("Content-Type", "text/plain; charset=utf-8"));
+    }
+
+    @Test
+    void legacyLocalSeedIsStillUsedWhenDefaultSeedIsMissing() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://legacy.example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/legacy.dopo"), "GET {{BASE_URL}}/health");
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        var report = pipeline(transport).run(Path.of("legacy"), tempDir, Map.of());
+
+        assertThat(report.isSuccess()).isTrue();
+        assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://legacy.example.com/health");
+    }
+
+    @Test
+    void previewBuildsPreparedRequestWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), """
+            BASE_URL=https://seed.example.com
+            TOKEN=seed-token
+            """);
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            @var TOKEN=local-token
+            POST {{BASE_URL}}/login
+            -h Authorization=Bearer {{TOKEN}}
+            <form|
+            email=user@example.com
+            role=admin
+            |>
+            """);
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        var report = pipeline(transport).preview(Path.of("auth/login"), tempDir, Map.of(
+            "BASE_URL", "https://env.example.com",
+            "TOKEN", "env-token"
+        ));
+
+        assertThat(transport.callCount).isZero();
+        assertThat(report.requestFile()).isEqualTo(tempDir.resolve(".doppio/requests/auth/login.dopo"));
+        assertThat(report.request().name()).isEqualTo("Login user");
+        assertThat(report.request().uri().toString()).isEqualTo("https://seed.example.com/login");
+        assertThat(report.request().headers())
+            .contains(new dev.voldpix.doppio.model.Header("Authorization", "Bearer local-token"))
+            .contains(new dev.voldpix.doppio.model.Header("Content-Type", "application/x-www-form-urlencoded"));
+        assertThat(report.bodyKind()).isEqualTo(dev.voldpix.doppio.model.BodyKind.FORM);
+        assertThat(report.body().content()).isEqualTo("email=user%40example.com&role=admin");
     }
 
     @Test
@@ -173,7 +221,7 @@ class DoppioPipelineTest {
     @Test
     void runFromInsideDoppioDirectoryUsesRequestsFolderShorthand() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
 
@@ -186,7 +234,7 @@ class DoppioPipelineTest {
     @Test
     void runInsideDoppioProjectAllowsOptionalDopoExtension() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
 

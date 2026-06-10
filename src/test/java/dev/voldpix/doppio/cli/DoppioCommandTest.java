@@ -32,7 +32,8 @@ class DoppioCommandTest {
         ).execute("init");
 
         assertThat(exit).isZero();
-        assertThat(tempDir.resolve(".doppio/local.seed")).exists();
+        assertThat(tempDir.resolve(".doppio/default.seed")).exists();
+        assertThat(tempDir.resolve(".doppio/local.seed")).doesNotExist();
         assertThat(tempDir.resolve(".doppio/requests/example.dopo")).exists();
         assertThat(tempDir.resolve(".doppio/requests/test.dopo")).exists();
         assertThat(tempDir.resolve("requests")).doesNotExist();
@@ -40,8 +41,15 @@ class DoppioCommandTest {
             .contains("@name Smoke test")
             .contains("GET {{BASE_URL}}/get")
             .contains("{{TEST_ID}}");
+        assertThat(out.toString())
+            .contains("Initialized Doppio project")
+            .contains(tempDir.resolve(".doppio").toAbsolutePath().normalize().toString())
+            .contains("|-- default.seed")
+            .contains("`-- requests/")
+            .contains("|-- example.dopo")
+            .contains("`-- test.dopo");
 
-        Files.writeString(tempDir.resolve(".doppio/local.seed"), "TOKEN=keep-me");
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "TOKEN=keep-me");
         Files.writeString(tempDir.resolve(".doppio/requests/test.dopo"), "GET https://keep.example.com");
         DoppioCommand.commandLine(
             tempDir,
@@ -51,9 +59,8 @@ class DoppioCommandTest {
             new FakeTransport()
         ).execute("init");
 
-        assertThat(Files.readString(tempDir.resolve(".doppio/local.seed"))).isEqualTo("TOKEN=keep-me");
+        assertThat(Files.readString(tempDir.resolve(".doppio/default.seed"))).isEqualTo("TOKEN=keep-me");
         assertThat(Files.readString(tempDir.resolve(".doppio/requests/test.dopo"))).isEqualTo("GET https://keep.example.com");
-        assertThat(out.toString()).contains("Initialized Doppio project");
     }
 
     @Test
@@ -78,7 +85,7 @@ class DoppioCommandTest {
     @Test
     void runPrintsRequestAndResponseReport() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio"));
-        Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
             @name Login request
@@ -104,6 +111,37 @@ class DoppioCommandTest {
             .contains("Response Headers")
             .contains("Response Body")
             .contains("\"ok\": true");
+    }
+
+    @Test
+    void runCanPrintJsonReportForAgents() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login request
+            GET {{BASE_URL}}/get
+            -h Accept=application/json
+            -q page=1
+            """);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("run", "--json", "auth/login");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("\"kind\":\"run\"")
+            .contains("\"success\":true")
+            .contains("\"name\":\"Login request\"")
+            .contains("\"url\":\"https://example.com/get?page=1\"")
+            .contains("\"status\":200")
+            .contains("\"body\":\"{\\\"ok\\\":true}\"")
+            .doesNotContain("\u001B[");
     }
 
     @Test
@@ -359,6 +397,140 @@ class DoppioCommandTest {
     }
 
     @Test
+    void showCanPrintJsonInspectionWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            @var EMAIL=user@example.com
+            POST {{BASE_URL}}/auth/login
+            -h Authorization=Bearer {{TOKEN}}
+            -q source=doppio
+            <json|
+            {"email":"{{EMAIL}}"}
+            |>
+            """);
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("show", "--json", "auth/login");
+
+        assertThat(exit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("\"kind\":\"show\"")
+            .contains("\"relativePath\":\"auth/login.dopo\"")
+            .contains("\"name\":\"Login user\"")
+            .contains("\"url\":\"{{BASE_URL}}/auth/login\"")
+            .contains("\"kind\":\"JSON\"")
+            .contains("\"EMAIL\":\"user@example.com\"");
+    }
+
+    @Test
+    void previewHydratesRequestWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), """
+            BASE_URL=https://seed.example.com
+            TOKEN=seed-token
+            """);
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            @var TOKEN=local-token
+            POST {{BASE_URL}}/auth/login
+            -h Authorization=Bearer {{TOKEN}}
+            <form|
+            email=user@example.com
+            role=admin
+            |>
+            """);
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of("BASE_URL", "https://env.example.com"),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("preview", "auth/login");
+
+        assertThat(exit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("Doppio Preview")
+            .contains("Name: Login user")
+            .contains("POST")
+            .contains("https://seed.example.com/auth/login")
+            .contains("Authorization: Bearer local-token")
+            .contains("Content-Type: application/x-www-form-urlencoded")
+            .contains("email=user%40example.com&role=admin");
+    }
+
+    @Test
+    void previewCanPrintJsonForAgents() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/text.dopo"), """
+            @name Text ping
+            POST {{BASE_URL}}/ping
+            <text|
+            hello
+            |>
+            """);
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("preview", "--json", "text");
+
+        assertThat(exit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("\"kind\":\"preview\"")
+            .contains("\"success\":true")
+            .contains("\"name\":\"Text ping\"")
+            .contains("\"url\":\"https://example.com/ping\"")
+            .contains("\"kind\":\"TEXT\"")
+            .contains("\"contentType\":\"text/plain; charset=utf-8\"")
+            .contains("\"content\":\"hello\"");
+    }
+
+    @Test
+    void previewJsonErrorsDoNotExecuteHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/missing.dopo"), "GET https://example.com/{{MISSING}}");
+        var out = new StringWriter();
+        var err = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(err, true),
+            transport
+        ).execute("preview", "--json", "missing");
+
+        assertThat(exit).isEqualTo(1);
+        assertThat(out.toString()).isBlank();
+        assertThat(transport.callCount).isZero();
+        assertThat(err.toString())
+            .contains("\"success\":false")
+            .contains("\"errorKind\":\"TEMPLATE\"")
+            .contains("MISSING");
+    }
+
+    @Test
     void showResolvesOptionalDopoExtensionFromProjectRootAndDoppioDirectory() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
@@ -398,7 +570,7 @@ class DoppioCommandTest {
     @Test
     void cleanRemovesSavedReportsUnderRequestsFolder() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login-1700000000000.txt"), "old report");
         Files.writeString(tempDir.resolve(".doppio/requests/auth/notes.txt"), "keep");
@@ -491,6 +663,8 @@ class DoppioCommandTest {
         assertThat(exit).isZero();
         assertThat(out.toString())
             .contains("Requests")
+            .contains(tempDir.resolve(".doppio").toAbsolutePath().normalize().toString())
+            .contains("`-- requests/")
             .contains("auth/")
             .contains("Login user (auth/login.dopo)")
             .contains("test (test.dopo)")
@@ -518,8 +692,60 @@ class DoppioCommandTest {
         assertThat(exit).isZero();
         assertThat(out.toString())
             .contains("Requests")
+            .contains(tempDir.resolve(".doppio").toAbsolutePath().normalize().toString())
             .contains("auth/")
             .contains("Login user (auth/login.dopo)");
+    }
+
+    @Test
+    void lsAliasCanPrintJsonRequestIndex() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            GET https://example.com/login
+            """);
+        Files.writeString(tempDir.resolve(".doppio/requests/bad.dopo"), "FETCH nope");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("ls", "--json");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("\"kind\":\"list\"")
+            .contains("\"project\":\"" + tempDir.resolve(".doppio").toAbsolutePath().normalize())
+            .contains("\"name\":\"Login user\"")
+            .contains("\"path\":\"auth/login.dopo\"")
+            .contains("\"name\":\"bad\"")
+            .contains("\"error\":\"parse error\"");
+    }
+
+    @Test
+    void docsPrintsComprehensiveQuickReference() {
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("docs");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Doppio Docs")
+            .contains(".doppio/default.seed")
+            .contains("doppio gen auth/login --method POST --body form --bearer")
+            .contains("doppio ls --json")
+            .contains("doppio preview auth/login --json")
+            .contains("doppio run auth/login --json")
+            .contains("doppio ls");
     }
 
     private static class FakeTransport implements HttpTransport {

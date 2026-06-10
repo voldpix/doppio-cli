@@ -26,10 +26,7 @@ public class RequestListService {
     }
 
     public List<RequestListEntry> list(Path workingDirectory) throws DoppioException {
-        var doppioDir = projectResolver.findDoppioDirectory(workingDirectory);
-        if (doppioDir == null) {
-            throw new DoppioException(ErrorKind.FILE, "No .doppio project found");
-        }
+        var doppioDir = projectDirectory(workingDirectory);
 
         var requestsDir = doppioDir.resolve("requests");
         if (!Files.isDirectory(requestsDir)) {
@@ -46,6 +43,14 @@ public class RequestListService {
         } catch (IOException e) {
             throw new DoppioException(ErrorKind.FILE, "Unable to list requests: " + requestsDir, e);
         }
+    }
+
+    public Path projectDirectory(Path workingDirectory) throws DoppioException {
+        var doppioDir = projectResolver.findDoppioDirectory(workingDirectory);
+        if (doppioDir == null) {
+            throw new DoppioException(ErrorKind.FILE, "No .doppio project found");
+        }
+        return doppioDir.toAbsolutePath().normalize();
     }
 
     private RequestListEntry toEntry(Path requestsDir, Path path) {
