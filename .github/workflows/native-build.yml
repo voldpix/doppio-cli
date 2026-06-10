@@ -57,12 +57,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/native
+          jar=$(ls target/doppio-*.jar | grep -v sources | grep -v javadoc | head -1)
+          echo "Using jar: $jar"
           native-image \
             --no-fallback \
+            -H:+UnlockExperimentalVMOptions \
             -H:+ReportExceptionStackTraces \
             -H:Name=${{ matrix.executable }} \
-            -H:Path=dist/native \
-            -jar target/doppio-1.0-SNAPSHOT.jar
+            -H:Path=$(pwd)/dist/native \
+            -jar "$jar"
           echo "--- Built files ---"
           ls -lh dist/native/
 
