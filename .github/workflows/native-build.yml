@@ -63,10 +63,14 @@ jobs:
             --no-fallback \
             -H:+UnlockExperimentalVMOptions \
             -H:+ReportExceptionStackTraces \
-            -H:Name=${{ matrix.executable }} \
             -H:Path=$(pwd)/dist/native \
             -jar "$jar"
-          echo "--- Built files ---"
+          echo "--- Built files (before rename) ---"
+          ls -lh dist/native/
+          # native-image ignores -H:Name with -jar, so rename whatever was produced
+          built=$(find dist/native -maxdepth 1 -type f -executable | head -1)
+          mv "$built" "dist/native/${{ matrix.executable }}"
+          echo "--- Built files (after rename) ---"
           ls -lh dist/native/
 
       - name: Verify executable
