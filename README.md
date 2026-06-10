@@ -88,4 +88,15 @@ The native build uses Docker with the GraalVM native-image community container. 
 
 Docker must be installed and running before invoking the script.
 
+## GitHub Actions Native Build
+
+The `Native Build` workflow is manual-only. Trigger it from the GitHub Actions tab to build native executables on standard Ubuntu and macOS runners and download the uploaded artifacts:
+
+- `doppio-linux-x64`
+- `doppio-macos`
+
+Each artifact contains a `.tar.gz`; extract it and run `./doppio --help`.
+
+Public repositories can use standard GitHub-hosted runners for free, but artifact storage still counts against GitHub Actions storage limits. The workflow keeps artifacts for 7 days.
+
 The implementation uses Java `HttpClient`, picocli, and a small pipeline of parser, template, body, preparation, transport, and formatter steps. That keeps the next native-image/GraalVM pass straightforward.
