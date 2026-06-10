@@ -1,5 +1,6 @@
 package dev.voldpix.doppio.request;
 
+import dev.voldpix.doppio.curl.CurlImport;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.ErrorKind;
 import dev.voldpix.doppio.pipeline.DoppioProjectResolver;
@@ -58,11 +59,54 @@ public class RequestFileCreator {
         return new RequestFileCreation(requestFile, relativePath);
     }
 
+    public RequestFileCreation createFromCurl(
+        Path requestedPath,
+        Path workingDirectory,
+        CurlImport curlImport
+    ) throws DoppioException {
+        if (curlImport == null) {
+            throw new DoppioException(ErrorKind.FILE, "Curl import is required");
+        }
+        var doppioDir = projectResolver.findDoppioDirectory(workingDirectory.toAbsolutePath().normalize());
+        if (doppioDir == null) {
+            throw new DoppioException(ErrorKind.FILE, "No .doppio project found. Run `doppio init` first.");
+        }
+        validateCurlImport(curlImport);
+
+        var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+        var relativePath = normalizeRequestPath(requestedPath);
+        var requestFile = requestsDir.resolve(relativePath).normalize();
+        if (!requestFile.startsWith(requestsDir)) {
+            throw new DoppioException(ErrorKind.FILE, "Request path must stay inside .doppio/requests: " + requestedPath);
+        }
+        if (Files.exists(requestFile)) {
+            throw new DoppioException(ErrorKind.FILE, "Request already exists: " + relativePath);
+        }
+
+        try {
+            Files.createDirectories(requestFile.getParent());
+            Files.writeString(requestFile, renderCurl(relativePath, curlImport));
+        } catch (IOException e) {
+            throw new DoppioException(ErrorKind.FILE, "Unable to create request: " + relativePath, e);
+        }
+
+        return new RequestFileCreation(requestFile, relativePath);
+    }
+
     private void validateOptions(RequestGenerationOptions options) throws DoppioException {
         for (var header : options.headers()) {
             parseHeader(header);
         }
         for (var queryParam : options.queryParams()) {
+            parseQueryParam(queryParam);
+        }
+    }
+
+    private void validateCurlImport(CurlImport curlImport) throws DoppioException {
+        for (var header : curlImport.headers()) {
+            parseHeader(header);
+        }
+        for (var queryParam : curlImport.queryParams()) {
             parseQueryParam(queryParam);
         }
     }
@@ -87,6 +131,26 @@ public class RequestFileCreator {
         return builder.toString();
     }
 
+    private String renderCurl(Path relativePath, CurlImport curlImport) throws DoppioException {
+        var builder = new StringBuilder();
+        builder.append("@name ").append(displayName(relativePath)).append('\n');
+        builder.append(curlImport.method()).append(' ').append(curlImport.url()).append('\n');
+
+        for (var header : curlHeaders(curlImport)) {
+            builder.append("-h ").append(header).append('\n');
+        }
+        for (var queryParam : curlImport.queryParams()) {
+            builder.append("-q ").append(parseQueryParam(queryParam)).append('\n');
+        }
+
+        var body = curlBodyBlock(curlImport);
+        if (!body.isBlank()) {
+            builder.append('\n').append(body);
+        }
+
+        return builder.toString();
+    }
+
     private List<String> headers(RequestGenerationOptions options) throws DoppioException {
         var headers = new ArrayList<String>();
         var userHeaders = new ArrayList<String>();
@@ -101,6 +165,22 @@ public class RequestFileCreator {
 
         if (options.bearer()) {
             headers.add("Authorization=Bearer {{TOKEN}}");
+        }
+
+        headers.addAll(userHeaders);
+        return headers;
+    }
+
+    private List<String> curlHeaders(CurlImport curlImport) throws DoppioException {
+        var headers = new ArrayList<String>();
+        var userHeaders = new ArrayList<String>();
+        for (var header : curlImport.headers()) {
+            userHeaders.add(parseHeader(header));
+        }
+
+        var defaultContentType = defaultContentType(curlImport.bodyKind());
+        if (defaultContentType != null && userHeaders.stream().noneMatch(this::isContentTypeHeader)) {
+            headers.add("Content-Type=" + defaultContentType);
         }
 
         headers.addAll(userHeaders);
@@ -192,6 +272,20 @@ public class RequestFileCreator {
                 key=value
                 |>
                 """;
+        };
+    }
+
+    private String curlBodyBlock(CurlImport curlImport) {
+        if (!curlImport.hasBody()) {
+            return "";
+        }
+        var body = curlImport.body();
+        return switch (curlImport.bodyKind()) {
+            case NONE -> "";
+            case JSON -> "<json|\n" + body + "\n|>\n";
+            case TEXT -> "<text|\n" + body + "\n|>\n";
+            case CSV -> "<csv|\n" + body + "\n|>\n";
+            case FORM -> "<form|\n" + body + "\n|>\n";
         };
     }
 

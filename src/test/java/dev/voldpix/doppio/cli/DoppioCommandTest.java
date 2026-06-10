@@ -415,6 +415,107 @@ class DoppioCommandTest {
     }
 
     @Test
+    void genFromCurlCreatesRequestFromBasicCurlCommand() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute(
+            "gen",
+            "auth/login",
+            "--from-curl",
+            """
+            curl --location --request POST 'https://api.example.com/auth/login?source=docs&debug' \
+              --header 'Content-Type: application/json' \
+              --header 'Authorization: Bearer token' \
+              --data-raw '{"email":"me@example.com"}'
+            """
+        );
+
+        assertThat(exit).isZero();
+        assertThat(out.toString()).contains("Created request").contains("auth/login.dopo");
+        assertThat(Files.readString(tempDir.resolve(".doppio/requests/auth/login.dopo"))).isEqualTo("""
+            @name Login
+            POST https://api.example.com/auth/login
+            -h Content-Type=application/json
+            -h Authorization=Bearer token
+            -q source=docs
+            -q debug
+
+            <json|
+            {"email":"me@example.com"}
+            |>
+            """);
+    }
+
+    @Test
+    void genFromCurlCreatesFormBodyAndDefaultContentType() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute(
+            "gen",
+            "auth/form-login",
+            "--from-curl",
+            "curl https://api.example.com/login -H 'Accept: application/json' -d username=alice -d password=secret"
+        );
+
+        assertThat(exit).isZero();
+        assertThat(Files.readString(tempDir.resolve(".doppio/requests/auth/form-login.dopo"))).isEqualTo("""
+            @name Form Login
+            POST https://api.example.com/login
+            -h Content-Type=application/x-www-form-urlencoded
+            -h Accept=application/json
+
+            <form|
+            username=alice
+            password=secret
+            |>
+            """);
+    }
+
+    @Test
+    void genFromCurlRejectsUnsupportedOptionsAndHelperMixing() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        var err = new StringWriter();
+
+        var unsupportedExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "bad/import", "--from-curl", "curl -I https://api.example.com");
+
+        assertThat(unsupportedExit).isEqualTo(1);
+        assertThat(err.toString()).contains("Unsupported curl option: -I");
+        assertThat(tempDir.resolve(".doppio/requests/bad/import.dopo")).doesNotExist();
+
+        err.getBuffer().setLength(0);
+        var mixedExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "bad/mixed", "--from-curl", "curl https://api.example.com", "--method", "POST");
+
+        assertThat(mixedExit).isEqualTo(1);
+        assertThat(err.toString()).contains("--from-curl cannot be combined");
+        assertThat(tempDir.resolve(".doppio/requests/bad/mixed.dopo")).doesNotExist();
+    }
+
+    @Test
     void showPrintsRequestDetailsWithoutExecutingHttp() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
@@ -898,6 +999,76 @@ class DoppioCommandTest {
     }
 
     @Test
+    void doctorReportsHealthyProjectWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/health.dopo"), "GET {{BASE_URL}}/health");
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("doctor");
+
+        assertThat(exit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("Doppio Doctor")
+            .contains("Project: " + tempDir.resolve(".doppio").toAbsolutePath().normalize())
+            .contains("PASS project")
+            .contains("PASS seed")
+            .contains("PASS requests")
+            .contains("PASS check")
+            .contains("Fail: 0");
+    }
+
+    @Test
+    void doctorReportsMissingProjectAndInvalidRequests() throws Exception {
+        var missingOut = new StringWriter();
+
+        var missingExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(missingOut, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("doctor");
+
+        assertThat(missingExit).isEqualTo(1);
+        assertThat(missingOut.toString())
+            .contains("Project: (not found)")
+            .contains("FAIL project")
+            .contains("No .doppio project found");
+
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/broken.dopo"), """
+            POST https://example.com
+            <json|
+            {"name":}
+            |>
+            """);
+        var invalidOut = new StringWriter();
+
+        var invalidExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(invalidOut, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("doctor");
+
+        assertThat(invalidExit).isEqualTo(1);
+        assertThat(invalidOut.toString())
+            .contains("FAIL check")
+            .contains("broken.dopo")
+            .contains("expected JSON value");
+    }
+
+    @Test
     void docsPrintsComprehensiveQuickReference() {
         var out = new StringWriter();
 
@@ -914,6 +1085,8 @@ class DoppioCommandTest {
             .contains("Doppio Docs")
             .contains(".doppio/default.seed")
             .contains("doppio gen auth/login --method POST --body form --bearer")
+            .contains("doppio gen auth/login --from-curl")
+            .contains("doppio doctor")
             .contains("doppio ls --json")
             .contains("doppio format auth/login")
             .contains("JSON bodies are pretty-printed")
