@@ -129,6 +129,9 @@ doppio ls
 doppio show auth/login
 doppio preview auth/login
 doppio run auth/login
+doppio format
+doppio format auth/login
+doppio format auth
 doppio run auth/login --save
 doppio clean
 doppio rm auth/login
@@ -142,7 +145,32 @@ doppio rm auth/login
 
 `doppio run` executes the request and prints request details, response status, elapsed time, response headers, and response body. Non-2xx HTTP responses still print response details and exit with failure.
 
+`doppio format` formats `.dopo` files. With no target it formats every request under `.doppio/requests`. With a target it accepts the same project shorthand style, so `doppio format auth/login`, `doppio format auth/login.dopo`, and `doppio format auth` work inside a Doppio project.
+
 `--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes generated report files under `.doppio/requests`. `doppio rm` moves request files to `.doppio/trash` instead of deleting them outright.
+
+## Formatting
+
+The formatter is intentionally conservative. It validates before writing and reports changed, unchanged, and failed files.
+
+```bash
+doppio format
+doppio format auth/login
+doppio format auth
+```
+
+JSON bodies are pretty-printed with 2-space indentation. Full-line `#` comments inside JSON keep their relative position, which lets you comment out actual JSON lines while testing request variants:
+
+```text
+<json|
+{
+  # "username": "{{USERNAME}}",
+  "password": "{{PASSWORD}}"
+}
+|>
+```
+
+Inline JSON comments are not supported in this pass. Text and CSV bodies have trailing whitespace trimmed. Form bodies preserve full-line comments and normalize `key=value` spacing.
 
 ## Generation Shortcuts
 
@@ -221,5 +249,16 @@ The `Native Build` workflow is manual-only. Trigger it from the GitHub Actions t
 Each artifact contains a `.tar.gz`; extract it and run `./doppio --help`.
 
 Public repositories can use standard GitHub-hosted runners for free, but artifact storage still counts against GitHub Actions storage limits. The workflow keeps artifacts for 7 days.
+
+## GitHub Release Build
+
+Pushing a version tag creates a GitHub Release and attaches native macOS and Linux archives:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow builds both native executables with GraalVM, verifies `./doppio --help`, packages each executable with a small README, and uploads the archives as release assets.
 
 The implementation uses Java `HttpClient`, picocli, and a small pipeline of parser, template, body, preparation, transport, and formatter steps. That keeps the next native-image/GraalVM pass straightforward.
