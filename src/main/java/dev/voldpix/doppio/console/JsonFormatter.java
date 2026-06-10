@@ -1,6 +1,8 @@
 package dev.voldpix.doppio.console;
 
 import dev.voldpix.doppio.dsl.DslParseException;
+import dev.voldpix.doppio.expect.Expectation;
+import dev.voldpix.doppio.expect.ExpectationReport;
 import dev.voldpix.doppio.list.RequestListEntry;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.DoppioResponse;
@@ -31,6 +33,8 @@ public class JsonFormatter {
         request(json, report.request());
         comma(json);
         response(json, report.response());
+        comma(json);
+        expectationReport(json, report.expectations());
         if (savedReport != null) {
             comma(json);
             field(json, "savedReport", absolute(savedReport));
@@ -52,6 +56,8 @@ public class JsonFormatter {
         comma(json);
         json.append("\"body\":");
         body(json, report);
+        comma(json);
+        expectations(json, report.expectations());
         json.append('}');
         return json.toString();
     }
@@ -92,6 +98,8 @@ public class JsonFormatter {
         comma(json);
         json.append("\"variables\":");
         stringMap(json, metadata.variables());
+        comma(json);
+        expectations(json, metadata.expectations());
         json.append('}');
         return json.toString();
     }
@@ -204,6 +212,55 @@ public class JsonFormatter {
         comma(json);
         field(json, "body", response.body());
         json.append('}');
+    }
+
+    private void expectationReport(StringBuilder json, ExpectationReport report) {
+        json.append("\"expectations\":{");
+        field(json, "success", report.isSuccess());
+        comma(json);
+        field(json, "passed", report.passedCount());
+        comma(json);
+        field(json, "failed", report.failedCount());
+        comma(json);
+        json.append("\"results\":[");
+        for (var i = 0; i < report.results().size(); i++) {
+            if (i > 0) {
+                comma(json);
+            }
+            var result = report.results().get(i);
+            json.append('{');
+            expectationFields(json, result.expectation());
+            comma(json);
+            field(json, "passed", result.passed());
+            comma(json);
+            field(json, "message", result.message());
+            json.append('}');
+        }
+        json.append(']');
+        json.append('}');
+    }
+
+    private void expectations(StringBuilder json, List<Expectation> expectations) {
+        json.append("\"expectations\":[");
+        for (var i = 0; i < expectations.size(); i++) {
+            if (i > 0) {
+                comma(json);
+            }
+            json.append('{');
+            expectationFields(json, expectations.get(i));
+            json.append('}');
+        }
+        json.append(']');
+    }
+
+    private void expectationFields(StringBuilder json, Expectation expectation) {
+        field(json, "kind", expectation.kind().name());
+        comma(json);
+        field(json, "target", expectation.target());
+        comma(json);
+        field(json, "expected", expectation.expected());
+        comma(json);
+        field(json, "label", expectation.label());
     }
 
     private void headers(StringBuilder json, List<Header> headers) {

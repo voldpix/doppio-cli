@@ -149,6 +149,27 @@ class DoppioPipelineTest {
     }
 
     @Test
+    void previewHydratesExpectationsWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "EXPECTED=ok");
+        Files.writeString(tempDir.resolve(".doppio/requests/expect.dopo"), """
+            @expect status=200
+            @expect header Content-Type contains json
+            @expect body contains {{EXPECTED}}
+            GET https://example.com
+            """);
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        var report = pipeline(transport).preview(Path.of("expect"), tempDir, Map.of());
+
+        assertThat(transport.callCount).isZero();
+        assertThat(report.expectations()).hasSize(3);
+        assertThat(report.expectations())
+            .extracting("expected")
+            .containsExactly("200", "json", "ok");
+    }
+
+    @Test
     void localVariableValuesAreLiteralAndNotRecursivelyHydrated() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests"));
         Files.writeString(tempDir.resolve(".doppio/requests/literal.dopo"), """
@@ -192,6 +213,53 @@ class DoppioPipelineTest {
 
         assertThat(report.isSuccess()).isFalse();
         assertThat(report.response().body()).isEqualTo("boom");
+    }
+
+    @Test
+    void runEvaluatesBasicExpectations() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/success.dopo"), """
+            @expect status=201
+            @expect header Content-Type contains json
+            @expect body contains created
+            GET https://example.com
+            """);
+        var transport = new FakeTransport(new DoppioResponse(
+            201,
+            Map.of("Content-Type", List.of("application/json")),
+            "{\"status\":\"created\"}",
+            Duration.ofMillis(2)
+        ));
+
+        var report = pipeline(transport).run(Path.of("success"), tempDir, Map.of());
+
+        assertThat(report.isSuccess()).isTrue();
+        assertThat(report.expectations().passedCount()).isEqualTo(3);
+        assertThat(report.expectations().failedCount()).isZero();
+    }
+
+    @Test
+    void runFailsWhenExpectationFailsEvenIfHttpStatusIs2xx() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/fail-expect.dopo"), """
+            @expect status=200
+            @expect body contains missing
+            GET https://example.com
+            """);
+        var transport = new FakeTransport(new DoppioResponse(
+            200,
+            Map.of(),
+            "{\"ok\":true}",
+            Duration.ofMillis(2)
+        ));
+
+        var report = pipeline(transport).run(Path.of("fail-expect"), tempDir, Map.of());
+
+        assertThat(report.response().isSuccess()).isTrue();
+        assertThat(report.isSuccess()).isFalse();
+        assertThat(report.expectations().passedCount()).isEqualTo(1);
+        assertThat(report.expectations().failedCount()).isEqualTo(1);
+        assertThat(report.expectations().results().getLast().message()).contains("response body did not contain");
     }
 
     @Test

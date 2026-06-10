@@ -98,6 +98,11 @@ public class ShowCommand implements Callable<Integer> {
                 .forEach(entry -> out.println("    " + entry.getKey() + "=" + entry.getValue()));
         }
 
+        if (!metadata.expectations().isEmpty()) {
+            out.println("  Expectations:");
+            metadata.expectations().forEach(expectation -> out.println("    " + expectation.label()));
+        }
+
         out.flush();
     }
 

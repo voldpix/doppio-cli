@@ -2,6 +2,7 @@ package dev.voldpix.doppio.pipeline;
 
 import dev.voldpix.doppio.body.BodyProcessor;
 import dev.voldpix.doppio.dsl.DslProcessor;
+import dev.voldpix.doppio.expect.ExpectationEvaluator;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.http.JavaHttpTransport;
 import dev.voldpix.doppio.http.RequestPreparer;
@@ -30,6 +31,7 @@ public class DoppioPipeline {
     private final RequestPreparer requestPreparer;
     private final HttpTransport transport;
     private final Duration timeout;
+    private final ExpectationEvaluator expectationEvaluator;
 
     public DoppioPipeline() {
         this(new RequestFileResolver(),
@@ -52,6 +54,28 @@ public class DoppioPipeline {
         HttpTransport transport,
         Duration timeout
     ) {
+        this(requestFileResolver,
+            seedFileLoader,
+            templateEngine,
+            dslProcessor,
+            bodyProcessor,
+            requestPreparer,
+            transport,
+            timeout,
+            new ExpectationEvaluator());
+    }
+
+    public DoppioPipeline(
+        RequestFileResolver requestFileResolver,
+        SeedFileLoader seedFileLoader,
+        TemplateEngine templateEngine,
+        DslProcessor dslProcessor,
+        BodyProcessor bodyProcessor,
+        RequestPreparer requestPreparer,
+        HttpTransport transport,
+        Duration timeout,
+        ExpectationEvaluator expectationEvaluator
+    ) {
         this.requestFileResolver = requestFileResolver;
         this.seedFileLoader = seedFileLoader;
         this.templateEngine = templateEngine;
@@ -60,14 +84,16 @@ public class DoppioPipeline {
         this.requestPreparer = requestPreparer;
         this.transport = transport;
         this.timeout = timeout;
+        this.expectationEvaluator = expectationEvaluator;
     }
 
     public RunReport run(Path requestFile, Path workingDirectory, Map<String, String> environment)
         throws DoppioException {
         var preview = preview(requestFile, workingDirectory, environment);
         var response = transport.execute(preview.request(), timeout);
+        var expectationReport = expectationEvaluator.evaluate(preview.expectations(), response);
 
-        return new RunReport(preview.requestFile(), preview.request(), response);
+        return new RunReport(preview.requestFile(), preview.request(), response, expectationReport);
     }
 
     public PreviewReport preview(Path requestFile, Path workingDirectory, Map<String, String> environment)
@@ -80,12 +106,19 @@ public class DoppioPipeline {
             : seedFileLoader.loadIfExists(resolution.seedFile());
         var hydratableContent = removeLocalVariableLines(rawContent);
         var hydratedContent = templateEngine.hydrate(hydratableContent, mergeVariables(environment, seedValues, metadata.variables()));
-        var request = dslProcessor.process(hydratedContent);
+        var hydratedInspection = dslProcessor.processWithMetadata(hydratedContent);
+        var request = hydratedInspection.request();
         var processedBody = bodyProcessor.process(request.body());
         var preparedRequest = requestPreparer.prepare(request, processedBody);
         var bodyKind = request.body() == null ? null : request.body().kind();
 
-        return new PreviewReport(resolution.requestFile(), preparedRequest, bodyKind, processedBody);
+        return new PreviewReport(
+            resolution.requestFile(),
+            preparedRequest,
+            bodyKind,
+            processedBody,
+            hydratedInspection.metadata().expectations()
+        );
     }
 
     private String removeLocalVariableLines(String content) {

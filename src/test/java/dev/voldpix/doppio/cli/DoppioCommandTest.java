@@ -145,6 +145,64 @@ class DoppioCommandTest {
     }
 
     @Test
+    void runPrintsExpectationResults() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/expect.dopo"), """
+            @expect status=200
+            @expect header content-type contains json
+            @expect body contains ok
+            GET https://example.com/get
+            """);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("run", "expect");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Expectations")
+            .contains("Passed: 3")
+            .contains("Failed: 0")
+            .contains("status=200")
+            .contains("header content-type contains json")
+            .contains("body contains ok");
+    }
+
+    @Test
+    void runJsonFailsWhenExpectationFails() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/expect-fail.dopo"), """
+            @expect status=200
+            @expect body contains missing
+            GET https://example.com/get
+            """);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("run", "--json", "expect-fail");
+
+        assertThat(exit).isEqualTo(1);
+        assertThat(out.toString())
+            .contains("\"kind\":\"run\"")
+            .contains("\"success\":false")
+            .contains("\"response\":{\"status\":200,\"success\":true")
+            .contains("\"expectations\":{\"success\":false")
+            .contains("\"failed\":1")
+            .contains("\"label\":\"body contains missing\"")
+            .contains("response body did not contain missing");
+    }
+
+    @Test
     void runCanSaveReportNextToResolvedRequestFile() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
@@ -362,6 +420,8 @@ class DoppioCommandTest {
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
             @name Login user
             @var EMAIL=user@example.com
+            @expect status=200
+            @expect body contains ok
             POST {{BASE_URL}}/auth/login
             -h Authorization=Bearer {{TOKEN}}
             -q source=doppio
@@ -393,7 +453,10 @@ class DoppioCommandTest {
             .contains("Body: JSON")
             .contains("Authorization=Bearer {{TOKEN}}")
             .contains("source=doppio")
-            .contains("EMAIL=user@example.com");
+            .contains("EMAIL=user@example.com")
+            .contains("Expectations")
+            .contains("status=200")
+            .contains("body contains ok");
     }
 
     @Test
@@ -402,6 +465,7 @@ class DoppioCommandTest {
         Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
             @name Login user
             @var EMAIL=user@example.com
+            @expect body contains ok
             POST {{BASE_URL}}/auth/login
             -h Authorization=Bearer {{TOKEN}}
             -q source=doppio
@@ -428,7 +492,9 @@ class DoppioCommandTest {
             .contains("\"name\":\"Login user\"")
             .contains("\"url\":\"{{BASE_URL}}/auth/login\"")
             .contains("\"kind\":\"JSON\"")
-            .contains("\"EMAIL\":\"user@example.com\"");
+            .contains("\"EMAIL\":\"user@example.com\"")
+            .contains("\"expectations\":[")
+            .contains("\"label\":\"body contains ok\"");
     }
 
     @Test
@@ -477,6 +543,7 @@ class DoppioCommandTest {
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
         Files.writeString(tempDir.resolve(".doppio/requests/text.dopo"), """
             @name Text ping
+            @expect body contains hello
             POST {{BASE_URL}}/ping
             <text|
             hello
@@ -502,7 +569,9 @@ class DoppioCommandTest {
             .contains("\"url\":\"https://example.com/ping\"")
             .contains("\"kind\":\"TEXT\"")
             .contains("\"contentType\":\"text/plain; charset=utf-8\"")
-            .contains("\"content\":\"hello\"");
+            .contains("\"content\":\"hello\"")
+            .contains("\"expectations\":[")
+            .contains("\"label\":\"body contains hello\"");
     }
 
     @Test
@@ -723,6 +792,109 @@ class DoppioCommandTest {
             .contains("\"path\":\"auth/login.dopo\"")
             .contains("\"name\":\"bad\"")
             .contains("\"error\":\"parse error\"");
+    }
+
+    @Test
+    void checkValidatesAllRequestsWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @expect status=200
+            GET {{BASE_URL}}/login
+            """);
+        Files.writeString(tempDir.resolve(".doppio/requests/broken.dopo"), """
+            POST {{BASE_URL}}/broken
+            <json|
+            {"name":}
+            |>
+            """);
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("check");
+
+        assertThat(exit).isEqualTo(1);
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("Doppio Check")
+            .contains("Valid: 1")
+            .contains("Failed: 1")
+            .contains("valid   auth/login.dopo")
+            .contains("failed  broken.dopo")
+            .contains("expected JSON value");
+    }
+
+    @Test
+    void checkCanTargetFolderAndFileWithOptionalExtension() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET https://example.com/login");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/refresh.dopo"), "GET https://example.com/refresh");
+        Files.writeString(tempDir.resolve(".doppio/requests/other.dopo"), "GET https://example.com/other");
+        var transport = new FakeTransport();
+        var folderOut = new StringWriter();
+
+        var folderExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(folderOut, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("check", "auth");
+
+        assertThat(folderExit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(folderOut.toString())
+            .contains("Valid: 2")
+            .contains("auth/login.dopo")
+            .contains("auth/refresh.dopo")
+            .doesNotContain("other.dopo");
+
+        var fileOut = new StringWriter();
+        var fileExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(fileOut, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("check", "other");
+
+        assertThat(fileExit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(fileOut.toString())
+            .contains("Valid: 1")
+            .contains("other.dopo");
+    }
+
+    @Test
+    void checkReportsInvalidExpectationWithoutExecutingHttp() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/requests/bad-expect.dopo"), """
+            @expect header Content-Type equals json
+            GET https://example.com
+            """);
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("check", "bad-expect");
+
+        assertThat(exit).isEqualTo(1);
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("Failed: 1")
+            .contains("bad-expect.dopo")
+            .contains("@expect status=200");
     }
 
     @Test

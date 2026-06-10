@@ -43,6 +43,9 @@ public class DocsCommand implements Callable<Integer> {
         Request Files
           @name Login user
           @var EMAIL=me@example.com
+          @expect status=200
+          @expect header Content-Type contains json
+          @expect body contains token
           POST {{BASE_URL}}/auth/login
           -h Content-Type=application/json
           -q source=doppio
@@ -75,6 +78,9 @@ public class DocsCommand implements Callable<Integer> {
           doppio format
           doppio format auth/login
           doppio format auth
+          doppio check
+          doppio check auth/login
+          doppio check auth
           doppio run auth/login --save
           doppio clean
           doppio rm auth/login
@@ -112,9 +118,17 @@ public class DocsCommand implements Callable<Integer> {
           JSON bodies are pretty-printed and full-line # comments keep their position.
           Inline JSON comments are not supported; comment out whole lines instead.
 
+        Checks And Expectations
+          @expect status=200 checks the response HTTP status.
+          @expect header Content-Type contains json checks a response header value.
+          @expect body contains token checks the response body as plain text.
+          Expectations run after HTTP execution and make doppio run fail when they fail.
+          doppio check validates request files without executing HTTP or evaluating response expectations.
+
         Notes For Coding Agents
           Prefer list or ls first to discover available requests.
           Use show before editing a request file.
+          Use check before run when validating generated or edited request files.
           Use preview --json before run --json when changing variables, headers, query params, or bodies.
           Non-2xx HTTP responses still print output and exit with failure.
         """;
