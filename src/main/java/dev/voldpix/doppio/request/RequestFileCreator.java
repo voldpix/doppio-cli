@@ -16,7 +16,7 @@ import java.util.Locale;
 
 public class RequestFileCreator {
     private static final String ENV_SEED_TEMPLATE = """
-        # Environment values override default.seed when selected with --env %s.
+        # Seed values override default.seed when selected with --env %s.
         BASE_URL=https://api.%s.example.com
         TOKEN=
         """;
@@ -47,11 +47,11 @@ public class RequestFileCreator {
         }
         validateOptions(options);
 
-        var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+        var requestsDir = doppioDir.resolve("recipes").toAbsolutePath().normalize();
         var relativePath = normalizeRequestPath(requestedPath);
         var requestFile = requestsDir.resolve(relativePath).normalize();
         if (!requestFile.startsWith(requestsDir)) {
-            throw new DoppioException(ErrorKind.FILE, "Request path must stay inside .doppio/requests: " + requestedPath);
+            throw new DoppioException(ErrorKind.FILE, "Request path must stay inside .doppio/recipes: " + requestedPath);
         }
         if (Files.exists(requestFile)) {
             throw new DoppioException(ErrorKind.FILE, "Request already exists: " + relativePath);
@@ -81,11 +81,11 @@ public class RequestFileCreator {
         }
         validateCurlImport(curlImport);
 
-        var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+        var requestsDir = doppioDir.resolve("recipes").toAbsolutePath().normalize();
         var relativePath = normalizeRequestPath(requestedPath);
         var requestFile = requestsDir.resolve(relativePath).normalize();
         if (!requestFile.startsWith(requestsDir)) {
-            throw new DoppioException(ErrorKind.FILE, "Request path must stay inside .doppio/requests: " + requestedPath);
+            throw new DoppioException(ErrorKind.FILE, "Request path must stay inside .doppio/recipes: " + requestedPath);
         }
         if (Files.exists(requestFile)) {
             throw new DoppioException(ErrorKind.FILE, "Request already exists: " + relativePath);
@@ -103,12 +103,12 @@ public class RequestFileCreator {
 
     public RequestFileCreation createEnvironment(String envName, Path workingDirectory) throws DoppioException {
         if (DoppioEnvironment.isDefaultName(envName)) {
-            throw new DoppioException(ErrorKind.SEED, "`default` is the built-in environment. Edit .doppio/default.seed instead.");
+            throw new DoppioException(ErrorKind.SEED, "`default` is the built-in seed. Edit .doppio/default.seed instead.");
         }
 
         var environment = DoppioEnvironment.of(envName);
         if (!environment.selected()) {
-            throw new DoppioException(ErrorKind.SEED, "Environment name is required");
+            throw new DoppioException(ErrorKind.SEED, "Seed name is required");
         }
 
         var doppioDir = projectResolver.findDoppioDirectory(workingDirectory.toAbsolutePath().normalize());
@@ -116,23 +116,23 @@ public class RequestFileCreator {
             throw new DoppioException(ErrorKind.FILE, "No .doppio project found. Run `doppio init` first.");
         }
 
-        var envsDir = doppioDir.resolve("envs").toAbsolutePath().normalize();
+        var envsDir = doppioDir.resolve("seeds").toAbsolutePath().normalize();
         var envFile = envsDir.resolve(environment.fileName()).normalize();
         if (!envFile.startsWith(envsDir)) {
-            throw new DoppioException(ErrorKind.SEED, "Environment path must stay inside .doppio/envs");
+            throw new DoppioException(ErrorKind.SEED, "Seed path must stay inside .doppio/seeds");
         }
         if (Files.exists(envFile)) {
-            throw new DoppioException(ErrorKind.SEED, "Environment already exists: " + environment.name());
+            throw new DoppioException(ErrorKind.SEED, "Seed already exists: " + environment.name());
         }
 
         try {
             Files.createDirectories(envFile.getParent());
             Files.writeString(envFile, ENV_SEED_TEMPLATE.formatted(environment.name(), environment.name()));
         } catch (IOException e) {
-            throw new DoppioException(ErrorKind.SEED, "Unable to create environment: " + environment.name(), e);
+            throw new DoppioException(ErrorKind.SEED, "Unable to create seed: " + environment.name(), e);
         }
 
-        return new RequestFileCreation(envFile, Path.of("envs").resolve(environment.fileName()));
+        return new RequestFileCreation(envFile, Path.of("seeds").resolve(environment.fileName()));
     }
 
     private void validateOptions(RequestGenerationOptions options) throws DoppioException {
@@ -339,7 +339,7 @@ public class RequestFileCreator {
             throw new DoppioException(ErrorKind.FILE, "Request filename is required");
         }
         if (requestedPath.isAbsolute()) {
-            throw new DoppioException(ErrorKind.FILE, "Use a request path relative to .doppio/requests");
+            throw new DoppioException(ErrorKind.FILE, "Use a request path relative to .doppio/recipes");
         }
 
         var path = requestedPath.normalize();
@@ -348,8 +348,8 @@ public class RequestFileCreator {
         }
 
         var first = path.getName(0).toString();
-        if (".doppio".equals(first) || "requests".equals(first)) {
-            throw new DoppioException(ErrorKind.FILE, "Use shorthand paths like auth/login.dopo, without .doppio/requests");
+        if (".doppio".equals(first) || "recipes".equals(first)) {
+            throw new DoppioException(ErrorKind.FILE, "Use shorthand paths like auth/login.dopo, without .doppio/recipes");
         }
 
         var filename = path.getFileName().toString();

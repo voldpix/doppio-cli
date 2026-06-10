@@ -22,7 +22,7 @@ public class PreviewCommand implements Callable<Integer> {
     @Option(names = "--json", description = "Print machine-readable JSON output.")
     private boolean json;
 
-    @Option(names = "--env", paramLabel = "NAME", description = "Use .doppio/envs/NAME.seed over default.seed.")
+    @Option(names = "--env", paramLabel = "NAME", description = "Use .doppio/seeds/NAME.seed over default.seed.")
     private String envName;
 
     private final Path workingDirectory;

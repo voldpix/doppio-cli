@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 
-@Command(name = "list", aliases = "ls", mixinStandardHelpOptions = true, description = "List Doppio request files.")
+@Command(name = "list", aliases = "ls", mixinStandardHelpOptions = true, description = "List Doppio recipes.")
 public class ListCommand implements Callable<Integer> {
     @Option(names = "--json", description = "Print machine-readable JSON output.")
     private boolean json;
@@ -49,10 +49,10 @@ public class ListCommand implements Callable<Integer> {
                 out.flush();
                 return 0;
             }
-            out.println("Requests");
+            out.println("Recipes");
             out.println();
             out.println(projectDirectory);
-            out.println("`-- requests/");
+            out.println("`-- recipes/");
             var root = new TreeNode();
             entries.forEach(entry -> root.add(entry));
             root.print("    ", out);

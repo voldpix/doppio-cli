@@ -24,7 +24,7 @@ public record DoppioEnvironment(String name) {
         if (!VALID_NAME.matcher(trimmed).matches()) {
             throw new DoppioException(
                 ErrorKind.SEED,
-                "Environment name must use only letters, numbers, underscores, or dashes: " + name
+                "Seed name must use only letters, numbers, underscores, or dashes: " + name
             );
         }
         return new DoppioEnvironment(trimmed);

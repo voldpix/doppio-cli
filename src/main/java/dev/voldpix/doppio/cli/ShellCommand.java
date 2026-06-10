@@ -24,7 +24,7 @@ public class ShellCommand implements Callable<Integer> {
     @Option(names = "--project", paramLabel = "PATH", description = "Project path to open.")
     private Path project;
 
-    @Option(names = "--env", paramLabel = "NAME", description = "Initial shell env.")
+    @Option(names = "--env", paramLabel = "NAME", description = "Initial shell seed overlay.")
     private String envName;
 
     private final Path workingDirectory;

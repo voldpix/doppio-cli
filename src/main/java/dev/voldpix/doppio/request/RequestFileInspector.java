@@ -43,7 +43,7 @@ public class RequestFileInspector {
             return requestFile.getFileName();
         }
 
-        var requestsDir = seedFile.getParent().resolve("requests").toAbsolutePath().normalize();
+        var requestsDir = seedFile.getParent().resolve("recipes").toAbsolutePath().normalize();
         if (requestFile.startsWith(requestsDir)) {
             return requestsDir.relativize(requestFile);
         }

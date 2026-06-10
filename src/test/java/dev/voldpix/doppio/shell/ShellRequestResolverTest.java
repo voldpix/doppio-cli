@@ -51,7 +51,7 @@ class ShellRequestResolverTest {
     }
 
     private void request(String relativePath, String content) throws Exception {
-        var path = tempDir.resolve(".doppio/requests").resolve(relativePath);
+        var path = tempDir.resolve(".doppio/recipes").resolve(relativePath);
         Files.createDirectories(path.getParent());
         Files.writeString(path, content);
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "");

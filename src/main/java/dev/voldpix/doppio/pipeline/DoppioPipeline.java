@@ -151,20 +151,19 @@ public class DoppioPipeline {
             return Map.of();
         }
 
-        var seedValues = new LinkedHashMap<>(seedFileLoader.loadIfExists(resolution.seedFile()));
+        var seedValues = new LinkedHashMap<>(seedFileLoader.loadResolvedIfExists(resolution.seedFile()));
         if (!selectedEnvironment.selected()) {
             return seedValues;
         }
 
-        var envFile = resolution.seedFile().getParent().resolve("envs").resolve(selectedEnvironment.fileName());
+        var envFile = resolution.seedFile().getParent().resolve("seeds").resolve(selectedEnvironment.fileName());
         if (!Files.isRegularFile(envFile)) {
             throw new DoppioException(
                 ErrorKind.SEED,
-                "Environment not found: " + selectedEnvironment.name() + " (" + envFile + ")"
+                "Seed not found: " + selectedEnvironment.name() + " (" + envFile + ")"
             );
         }
-        seedValues.putAll(seedFileLoader.loadIfExists(envFile));
-        return seedValues;
+        return new LinkedHashMap<>(seedFileLoader.loadResolvedIfExists(envFile, seedValues));
     }
 
     private String removeLocalVariableLines(String content) {

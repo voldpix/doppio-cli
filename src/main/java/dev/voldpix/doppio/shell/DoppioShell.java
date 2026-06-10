@@ -205,8 +205,7 @@ public class DoppioShell {
                     saveLastReport();
                 }
                 case "seed" -> handleSeed(args);
-                case "env" -> handleEnv(args);
-                case "editor" -> handleEditor(args);
+                case "config" -> handleConfig(args);
                 case "projects" -> {
                     ensureNoArgs(args, "Usage: projects");
                     printProjects();
@@ -263,7 +262,7 @@ public class DoppioShell {
         if (request.isEmpty()) {
             return;
         }
-        openEditor(session.doppioDirectory().resolve("requests").resolve(request.get().relativePath()));
+        openEditor(session.doppioDirectory().resolve("recipes").resolve(request.get().relativePath()));
     }
 
     private void removeRequest(List<String> args, LineReader reader) throws DoppioException {
@@ -308,72 +307,61 @@ public class DoppioShell {
 
     private void handleSeed(List<String> args) throws DoppioException {
         if (args.isEmpty()) {
-            out.println("Usage: seed list | seed edit default|NAME | seed gen NAME | seed rm NAME");
+            out.println("Usage: seed list | seed use NAME | seed clear | seed edit default|NAME | seed gen NAME | seed rm NAME");
             return;
         }
         switch (args.getFirst()) {
             case "list" -> listSeeds();
+            case "use" -> useSeed(requiredArg(args, "seed use requires a seed name"));
+            case "clear" -> {
+                session.environmentName(null);
+                out.println(styler.success("Using seed: ") + styler.env("default"));
+            }
             case "edit" -> {
-                var name = requiredArg(args, "seed edit requires default or env name");
+                var name = requiredArg(args, "seed edit requires default or seed name");
                 openEditor(seedPath(name));
             }
             case "gen" -> {
-                var name = requiredArg(args, "seed gen requires an env name");
+                var name = requiredArg(args, "seed gen requires a seed name");
                 var created = requestFileCreator.createEnvironment(name, session.projectRoot());
                 out.println(styler.success("Created seed: ") + styler.path(created.relativePath()));
             }
-            case "rm" -> removeSeed(requiredArg(args, "seed rm requires an env name"));
+            case "rm" -> removeSeed(requiredArg(args, "seed rm requires a seed name"));
             default -> out.println("Unknown seed command: " + args.getFirst());
         }
     }
 
-    private void handleEnv(List<String> args) throws DoppioException {
-        if (args.isEmpty()) {
-            out.println("Usage: env list | env use NAME | env clear | env edit NAME | env gen NAME");
+    private void useSeed(String name) throws DoppioException {
+        if (DoppioEnvironment.isDefaultName(name)) {
+            session.environmentName(null);
+            out.println(styler.success("Using seed: ") + styler.env("default"));
             return;
         }
-        switch (args.getFirst()) {
-            case "list" -> listSeeds();
-            case "use" -> {
-                var name = requiredArg(args, "env use requires an env name");
-                if (DoppioEnvironment.isDefaultName(name)) {
-                    session.environmentName(null);
-                    out.println(styler.success("Using env: ") + styler.env("default"));
-                    return;
-                }
-                var path = seedPath(name);
-                if (!Files.isRegularFile(path)) {
-                    throw new DoppioException(ErrorKind.SEED, "Seed not found: " + name + ". Use `env gen " + name + "` first.");
-                }
-                session.environmentName(name);
-                out.println(styler.success("Using env: ") + styler.env(name));
-            }
-            case "clear" -> {
-                session.environmentName(null);
-                out.println(styler.success("Using env: ") + styler.env("default"));
-            }
-            case "edit" -> {
-                var name = requiredArg(args, "env edit requires an env name");
-                openEditor(seedPath(name));
-            }
-            case "gen" -> {
-                var name = requiredArg(args, "env gen requires an env name");
-                var created = requestFileCreator.createEnvironment(name, session.projectRoot());
-                out.println(styler.success("Created env: ") + styler.path(created.relativePath()));
-            }
-            default -> out.println("Unknown env command: " + args.getFirst());
+        var path = seedPath(name);
+        if (!Files.isRegularFile(path)) {
+            throw new DoppioException(ErrorKind.SEED, "Seed not found: " + name + ". Use `seed gen " + name + "` first.");
         }
+        session.environmentName(name);
+        out.println(styler.success("Using seed: ") + styler.env(name));
     }
 
-    private void handleEditor(List<String> args) throws DoppioException {
+    private void handleConfig(List<String> args) throws DoppioException {
+        if (args.isEmpty() || !"editor".equals(args.getFirst())) {
+            out.println("Usage: config editor show | config editor use COMMAND | config editor clear");
+            return;
+        }
+        handleEditorConfig(args.subList(1, args.size()));
+    }
+
+    private void handleEditorConfig(List<String> args) throws DoppioException {
         if (args.isEmpty()) {
-            out.println("Usage: editor show | editor use COMMAND | editor clear");
+            out.println("Usage: config editor show | config editor use COMMAND | config editor clear");
             return;
         }
         switch (args.getFirst()) {
             case "show" -> printEditor();
             case "use" -> {
-                var command = joinedArgs(args, 1, "editor use requires a command");
+                var command = joinedArgs(args, 1, "config editor use requires a command");
                 configStore.write(configStore.read().withEditorCommand(command));
                 out.println(styler.success("Editor saved: ") + styler.command(command));
             }
@@ -381,7 +369,7 @@ public class DoppioShell {
                 configStore.write(configStore.read().withEditorCommand(null));
                 out.println(styler.muted("Editor config cleared."));
             }
-            default -> out.println("Unknown editor command: " + args.getFirst());
+            default -> out.println("Unknown config editor command: " + args.getFirst());
         }
     }
 
@@ -389,7 +377,7 @@ public class DoppioShell {
         var resolved = editor.resolve(environment, configStore.read());
         if (resolved.isEmpty()) {
             out.println(styler.warning("Editor: ") + "(not configured)");
-            out.println(styler.muted("Run `editor use nano`, `editor use \"code -w\"`, or set DOPPIO_EDITOR, VISUAL, or EDITOR."));
+            out.println(styler.muted("Run `config editor use nano`, `config editor use \"code -w\"`, or set DOPPIO_EDITOR, VISUAL, or EDITOR."));
             return;
         }
         out.println("Editor: " + styler.command(resolved.get().command()) + " " + styler.muted("(" + resolved.get().source() + ")"));
@@ -410,18 +398,18 @@ public class DoppioShell {
         out.println("Seeds");
         var defaultSeed = session.doppioDirectory().resolve("default.seed");
         out.println("  " + styler.env("default") + " " + (Files.isRegularFile(defaultSeed) ? styler.path(defaultSeed) : styler.warning("(missing)")));
-        var envs = envNames();
-        for (var env : envs) {
-            out.println("  " + styler.env(env) + " " + styler.path(session.doppioDirectory().resolve("envs").resolve(env + ".seed")));
+        var seeds = seedNames();
+        for (var seed : seeds) {
+            out.println("  " + styler.env(seed) + " " + styler.path(session.doppioDirectory().resolve("seeds").resolve(seed + ".seed")));
         }
     }
 
-    private List<String> envNames() throws DoppioException {
-        var envsDir = session.doppioDirectory().resolve("envs");
-        if (!Files.isDirectory(envsDir)) {
+    private List<String> seedNames() throws DoppioException {
+        var seedsDir = session.doppioDirectory().resolve("seeds");
+        if (!Files.isDirectory(seedsDir)) {
             return List.of();
         }
-        try (var files = Files.walk(envsDir, 1)) {
+        try (var files = Files.walk(seedsDir, 1)) {
             return files
                 .filter(Files::isRegularFile)
                 .map(path -> path.getFileName().toString())
@@ -438,10 +426,10 @@ public class DoppioShell {
         if (DoppioEnvironment.isDefaultName(name)) {
             return session.doppioDirectory().resolve("default.seed");
         }
-        var env = DoppioEnvironment.of(name);
-        var path = session.doppioDirectory().resolve("envs").resolve(env.fileName()).normalize();
-        if (!path.startsWith(session.doppioDirectory().resolve("envs").normalize())) {
-            throw new DoppioException(ErrorKind.SEED, "Seed path must stay inside .doppio/envs");
+        var seed = DoppioEnvironment.of(name);
+        var path = session.doppioDirectory().resolve("seeds").resolve(seed.fileName()).normalize();
+        if (!path.startsWith(session.doppioDirectory().resolve("seeds").normalize())) {
+            throw new DoppioException(ErrorKind.SEED, "Seed path must stay inside .doppio/seeds");
         }
         return path;
     }
@@ -530,7 +518,7 @@ public class DoppioShell {
         if (request.name() != null && !request.name().isBlank()) {
             out.println("Name: " + request.name());
         }
-        out.println("Env: " + styler.env(envName == null || envName.isBlank() ? "default" : envName));
+        out.println("Seed: " + styler.env(envName == null || envName.isBlank() ? "default" : envName));
         out.println("Request: " + styler.method(request.method().name()) + " " + styler.url(request.uri().toString()));
         out.println("Result: " + styler.result(label, report.isSuccess()) + " " + response.statusCode() + "  " + response.duration().toMillis() + "ms");
         if (!report.expectations().isEmpty()) {
@@ -566,9 +554,8 @@ public class DoppioShell {
               format [request-or-folder]
               check [request-or-folder] [--env NAME]
               rm [request]
-              seed list | seed edit default|NAME | seed gen NAME | seed rm NAME
-              env list | env use NAME | env clear | env edit NAME | env gen NAME
-              editor show | editor use COMMAND | editor clear
+              seed list | seed use NAME | seed clear | seed edit default|NAME | seed gen NAME | seed rm NAME
+              config editor show | config editor use COMMAND | config editor clear
               projects | project <number|path>
               help | exit
             """);
