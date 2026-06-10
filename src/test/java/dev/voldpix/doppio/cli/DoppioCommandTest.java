@@ -743,9 +743,124 @@ class DoppioCommandTest {
             .contains(".doppio/default.seed")
             .contains("doppio gen auth/login --method POST --body form --bearer")
             .contains("doppio ls --json")
+            .contains("doppio format auth/login")
+            .contains("JSON bodies are pretty-printed")
             .contains("doppio preview auth/login --json")
             .contains("doppio run auth/login --json")
             .contains("doppio ls");
+    }
+
+    @Test
+    void formatWithoutTargetFormatsAllProjectRequests() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        var login = tempDir.resolve(".doppio/requests/auth/login.dopo");
+        var ping = tempDir.resolve(".doppio/requests/ping.dopo");
+        Files.writeString(login, """
+            @name   Login   user
+            POST   https://example.com/auth/login
+            header   Content-Type=application/json
+            <json|
+            {"password":"{{PASSWORD}}",
+            # "username":"{{USERNAME}}",
+            "remember":true}
+            |>
+            """);
+        Files.writeString(ping, "GET https://example.com/ping\n");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("format");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Doppio Format")
+            .contains("Changed: 1")
+            .contains("Unchanged: 1")
+            .contains("changed   auth/login.dopo")
+            .contains("unchanged ping.dopo");
+        assertThat(Files.readString(login)).isEqualTo("""
+            @name Login user
+            POST https://example.com/auth/login
+            -h Content-Type=application/json
+
+            <json|
+            {
+              "password": "{{PASSWORD}}",
+              # "username":"{{USERNAME}}",
+              "remember": true
+            }
+            |>
+            """);
+    }
+
+    @Test
+    void formatCanTargetFolderAndFileWithOptionalExtension() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        var login = tempDir.resolve(".doppio/requests/auth/login.dopo");
+        var refresh = tempDir.resolve(".doppio/requests/auth/refresh.dopo");
+        var other = tempDir.resolve(".doppio/requests/other.dopo");
+        Files.writeString(login, "GET    https://example.com/login\n");
+        Files.writeString(refresh, "GET    https://example.com/refresh\n");
+        Files.writeString(other, "GET    https://example.com/other\n");
+
+        var folderExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("format", "auth");
+
+        assertThat(folderExit).isZero();
+        assertThat(Files.readString(login)).isEqualTo("GET https://example.com/login\n");
+        assertThat(Files.readString(refresh)).isEqualTo("GET https://example.com/refresh\n");
+        assertThat(Files.readString(other)).isEqualTo("GET    https://example.com/other\n");
+
+        var fileExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("format", "other");
+
+        assertThat(fileExit).isZero();
+        assertThat(Files.readString(other)).isEqualTo("GET https://example.com/other\n");
+    }
+
+    @Test
+    void formatReportsInvalidJsonAndDoesNotRewriteFile() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        var broken = tempDir.resolve(".doppio/requests/broken.dopo");
+        var original = """
+            POST https://example.com
+            <json|
+            {"username": "{{USERNAME}}" # inline comment}
+            |>
+            """;
+        Files.writeString(broken, original);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("format", "broken");
+
+        assertThat(exit).isEqualTo(1);
+        assertThat(Files.readString(broken)).isEqualTo(original);
+        assertThat(out.toString())
+            .contains("Failed: 1")
+            .contains("failed")
+            .contains("broken.dopo")
+            .contains("Inline JSON comments");
     }
 
     private static class FakeTransport implements HttpTransport {

@@ -72,6 +72,9 @@ public class DocsCommand implements Callable<Integer> {
           doppio show auth/login
           doppio preview auth/login
           doppio run auth/login
+          doppio format
+          doppio format auth/login
+          doppio format auth
           doppio run auth/login --save
           doppio clean
           doppio rm auth/login
@@ -101,6 +104,13 @@ public class DocsCommand implements Callable<Integer> {
           show reads request structure before hydration.
           preview hydrates variables and prepares the final request without network execution.
           run executes the request and includes response status, headers, body, and duration.
+
+        Formatting
+          doppio format formats all .dopo files under .doppio/requests.
+          doppio format auth/login formats one request; .dopo is optional in a project.
+          doppio format auth formats every .dopo file under that request folder.
+          JSON bodies are pretty-printed and full-line # comments keep their position.
+          Inline JSON comments are not supported; comment out whole lines instead.
 
         Notes For Coding Agents
           Prefer list or ls first to discover available requests.

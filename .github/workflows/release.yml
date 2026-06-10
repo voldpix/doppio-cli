@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  native:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x64
+            executable: doppio
+          - os: macos-latest
+            label: macos
+            executable: doppio
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: 'maven'
+          native-image-job-reports: 'true'
+
+      - name: Show toolchain
+        run: |
+          java --version
+          native-image --version
+          mvn --version
+
+      - name: Test and package jar
+        run: mvn clean package
+
+      - name: Build native executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/native
+
+          jar=$(ls target/doppio-*.jar | grep -v sources | grep -v javadoc | head -1)
+          jarbase=$(basename "$jar" .jar)
+          echo "Using jar: $jar"
+
+          native-image \
+            --no-fallback \
+            -H:+UnlockExperimentalVMOptions \
+            -H:+ReportExceptionStackTraces \
+            -H:Path=$(pwd)/dist/native \
+            -jar "$jar"
+
+          mv "dist/native/$jarbase" "dist/native/${{ matrix.executable }}"
+          ls -lh dist/native/
+
+      - name: Sign executable (macOS)
+        if: matrix.os == 'macos-latest'
+        run: codesign --sign - --force --verbose dist/native/${{ matrix.executable }}
+
+      - name: Verify executable
+        run: ./dist/native/${{ matrix.executable }} --help
+
+      - name: Package release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset_name="doppio-${{ matrix.label }}"
+          asset_dir="dist/release/$asset_name"
+          asset_tar="dist/release/$asset_name.tar.gz"
+
+          mkdir -p "$asset_dir"
+          cp "dist/native/${{ matrix.executable }}" "$asset_dir/doppio"
+          chmod +x "$asset_dir/doppio"
+          {
+            echo "Doppio native executable"
+            echo "Platform: ${{ matrix.label }}"
+            echo "Tag: ${{ github.ref_name }}"
+            echo "Commit: ${{ github.sha }}"
+            echo "Runner OS: $RUNNER_OS"
+            echo "Runner architecture: $RUNNER_ARCH"
+            echo "Built at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > "$asset_dir/README.txt"
+
+          tar -czf "$asset_tar" -C "$asset_dir" .
+          shasum -a 256 "$asset_tar" > "$asset_tar.sha256"
+
+      - name: Upload native archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: doppio-${{ matrix.label }}
+          path: |
+            dist/release/doppio-${{ matrix.label }}.tar.gz
+            dist/release/doppio-${{ matrix.label }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: native
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download native archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/release
+          merge-multiple: true
+
+      - name: Show release assets
+        run: ls -lh dist/release
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/*.tar.gz
+            dist/release/*.sha256
+          generate_release_notes: true
