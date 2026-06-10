@@ -184,6 +184,19 @@ class DoppioPipelineTest {
     }
 
     @Test
+    void runInsideDoppioProjectAllowsOptionalDopoExtension() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        var report = pipeline(transport).run(Path.of("auth/login"), tempDir, Map.of());
+
+        assertThat(report.isSuccess()).isTrue();
+        assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://example.com/login");
+    }
+
+    @Test
     void runOutsideDoppioProjectAllowsDirectFileOnly() throws Exception {
         Files.writeString(tempDir.resolve("standalone.dopo"), "GET https://standalone.example.com/{{TOKEN}}");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
@@ -196,6 +209,10 @@ class DoppioPipelineTest {
         assertThatThrownBy(() -> pipeline(transport).run(Path.of("missing.dopo"), tempDir, Map.of()))
             .isInstanceOf(DoppioException.class)
             .hasMessageContaining("No .doppio project found");
+
+        assertThatThrownBy(() -> pipeline(transport).run(Path.of("standalone"), tempDir, Map.of("TOKEN", "env-token")))
+            .isInstanceOf(DoppioException.class)
+            .hasMessageContaining("Only .dopo");
     }
 
     private DoppioPipeline pipeline(HttpTransport transport) {

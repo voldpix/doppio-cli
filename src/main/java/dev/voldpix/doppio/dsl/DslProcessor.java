@@ -24,8 +24,17 @@ public class DslProcessor {
         return extractBlocks(content, false).metadata();
     }
 
+    public DslInspection inspect(String content) throws DslParseException {
+        var blocks = extractBlocks(content, true);
+        return new DslInspection(blocks.metadata(), parseRequest(blocks, true));
+    }
+
     public DoppioRequest process(String content) throws DslParseException {
         var blocks = extractBlocks(content, true);
+        return parseRequest(blocks, false);
+    }
+
+    private DoppioRequest parseRequest(RawBlocks blocks, boolean allowTemplatedUrl) throws DslParseException {
         var errors = new ArrayList<ParseError>();
 
         if (blocks.directives().isEmpty()) {
@@ -33,7 +42,7 @@ public class DslProcessor {
             throw new DslParseException(errors);
         }
 
-        var requestLine = parseRequestLine(blocks.directives().getFirst(), errors);
+        var requestLine = parseRequestLine(blocks.directives().getFirst(), errors, allowTemplatedUrl);
         var headers = new ArrayList<Header>();
         var queryParams = new ArrayList<QueryParam>();
 
@@ -246,7 +255,7 @@ public class DslProcessor {
         return value;
     }
 
-    private RequestLine parseRequestLine(String line, List<ParseError> errors) {
+    private RequestLine parseRequestLine(String line, List<ParseError> errors, boolean allowTemplatedUrl) {
         var parts = line.split("\\s+", 2);
         if (parts.length < 2) {
             errors.add(new ParseError(line, "expected: http method and URL e.g. GET https://api.example.com"));
@@ -259,11 +268,15 @@ public class DslProcessor {
         }
 
         var url = parts[1].trim();
-        if (method.isPresent() && !isValidHttpUrl(url)) {
+        if (method.isPresent() && !isValidHttpUrl(url) && !(allowTemplatedUrl && hasTemplate(url))) {
             errors.add(new ParseError(line, "invalid URL. Ensure it includes http:// or https://"));
         }
 
         return new RequestLine(method.orElse(HttpMethod.GET), url);
+    }
+
+    private boolean hasTemplate(String value) {
+        return value.contains("{{") && value.contains("}}");
     }
 
     private boolean isValidHttpUrl(String url) {

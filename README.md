@@ -5,8 +5,10 @@ Doppio is a console-first HTTP request runner. It is aimed at projects where req
 The core unit is a `.dopo` file under `.doppio/requests`. Doppio resolves requests by shorthand, so a file at `.doppio/requests/auth/login.dopo` can be run as:
 
 ```bash
-doppio run auth/login.dopo
+doppio run auth/login
 ```
+
+The `.dopo` extension is optional for request shorthands inside a Doppio project, including `run`, `show`, and `rm`. Standalone request files outside a project must use the full filename.
 
 ## Project Layout
 
@@ -54,13 +56,18 @@ Only `#` starts a comment. `@name` and `@var` are metadata, not scripting hooks,
 
 ```bash
 doppio init
+doppio gen auth/login
 doppio list
-doppio run test.dopo
-doppio run auth/login.dopo --save
+doppio show auth/login
+doppio run test
+doppio run auth/login --save
 doppio clean
+doppio rm auth/login
 ```
 
-`--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes those generated report files under `.doppio/requests`.
+`doppio gen` creates editable request placeholders under `.doppio/requests`, and `doppio show` inspects metadata, method, URL, headers, query params, local variables, and body type without executing HTTP.
+
+`--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes those generated report files under `.doppio/requests`. `doppio rm` moves request files to `.doppio/trash` instead of deleting them outright.
 
 ## Build
 
