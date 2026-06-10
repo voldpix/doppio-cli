@@ -147,7 +147,7 @@ remember=true
 |>
 ```
 
-Blank lines and `#` comments inside body blocks are ignored. Doppio adds the default `Content-Type` for typed bodies unless the request already sets one.
+Blank lines are trimmed around every body block. Full-line `#` comments are ignored in JSON and form bodies; text and CSV bodies preserve literal `#` lines. Doppio adds the default `Content-Type` for typed bodies unless the request already sets one.
 
 ## Commands
 

@@ -357,6 +357,19 @@ class DoppioCommandTest {
         assertThat(mixedExit).isEqualTo(1);
         assertThat(err.toString()).contains("--env cannot be combined");
         assertThat(tempDir.resolve(".doppio/envs/staging.seed")).doesNotExist();
+
+        err.getBuffer().setLength(0);
+        var defaultExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "--env", "default");
+
+        assertThat(defaultExit).isEqualTo(1);
+        assertThat(err.toString()).contains("built-in environment");
+        assertThat(tempDir.resolve(".doppio/envs/default.seed")).doesNotExist();
     }
 
     @Test
@@ -478,6 +491,7 @@ class DoppioCommandTest {
         assertInvalidGen("bad-method", "Unsupported method", "gen", "bad-method", "--method", "FETCH");
         assertInvalidGen("bad-body", "Unsupported body kind", "gen", "bad-body", "--body", "xml");
         assertInvalidGen("bad-header", "Header must use key=value", "gen", "bad-header", "-H", "Authorization");
+        assertInvalidGen("bad-header-name", "Invalid HTTP header name", "gen", "bad-header-name", "-H", "Bad Header=value");
         assertInvalidGen("bad-query", "Query param key is missing", "gen", "bad-query", "-q", "=broken");
     }
 

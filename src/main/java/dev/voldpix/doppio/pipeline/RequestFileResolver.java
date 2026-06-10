@@ -32,15 +32,22 @@ public class RequestFileResolver {
         }
 
         var seedFile = seedFile(doppioDir);
-        if (isInside(normalizedWorkingDirectory, doppioDir) && Files.exists(directCandidate)) {
-            return existingFile(directCandidate, seedFile);
+        var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+        if (isInside(normalizedWorkingDirectory, requestsDir) && Files.exists(directCandidate)) {
+            return existingProjectRequestFile(directCandidate, seedFile, requestsDir, requestedFile);
         }
 
         if (isExplicitDoppioPath(requestedFile) && Files.exists(directCandidate)) {
-            return existingFile(directCandidate, seedFile);
+            return existingProjectRequestFile(directCandidate, seedFile, requestsDir, requestedFile);
         }
 
-        var requestsCandidate = doppioDir.resolve("requests").resolve(effectiveRequestFile).normalize();
+        var requestsCandidate = requestsDir.resolve(effectiveRequestFile).normalize();
+        if (!requestsCandidate.startsWith(requestsDir)) {
+            throw new DoppioException(
+                ErrorKind.FILE,
+                "Request path must stay inside .doppio/requests: " + requestedFile
+            );
+        }
         if (Files.exists(requestsCandidate)) {
             return existingFile(requestsCandidate, seedFile);
         }
@@ -101,6 +108,21 @@ public class RequestFileResolver {
             throw new DoppioException(ErrorKind.FILE, "Request path is not a file: " + file);
         }
         return new RequestResolution(file, seedFile);
+    }
+
+    private RequestResolution existingProjectRequestFile(
+        Path file,
+        Path seedFile,
+        Path requestsDir,
+        Path requestedFile
+    ) throws DoppioException {
+        if (!file.toAbsolutePath().normalize().startsWith(requestsDir)) {
+            throw new DoppioException(
+                ErrorKind.FILE,
+                "Request path must stay inside .doppio/requests: " + requestedFile
+            );
+        }
+        return existingFile(file, seedFile);
     }
 
     private Path normalize(Path workingDirectory, Path requestedFile) {

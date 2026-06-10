@@ -88,6 +88,42 @@ class DoppioShellTest {
     }
 
     @Test
+    void envUseDefaultClearsSelectedEnvironment() throws Exception {
+        var project = project("api");
+        Files.createDirectories(project.resolve(".doppio/envs"));
+        Files.writeString(project.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
+        Files.writeString(project.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
+        request(project, "ping.dopo", "GET {{BASE_URL}}/ping");
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+        var shell = shell(project, out, new StringWriter(), transport, new CapturingEditor());
+
+        var exit = shell.run(reader("env use dev\nenv use default\nrun ping\nexit\n"), null, null);
+
+        assertThat(exit).isZero();
+        assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://default.example.com/ping");
+        assertThat(out.toString())
+            .contains("Using env: dev")
+            .contains("Using env: default")
+            .contains("Env: default");
+    }
+
+    @Test
+    void listPassesJsonOptionToCliAlias() throws Exception {
+        var project = project("api");
+        request(project, "auth/login.dopo", "@name Login\nGET https://example.com/login");
+        var out = new StringWriter();
+        var shell = shell(project, out, new StringWriter(), new FakeTransport(), new CapturingEditor());
+
+        var exit = shell.run(reader("ls --json\nexit\n"), null, null);
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("\"kind\":\"list\"")
+            .contains("\"path\":\"auth/login.dopo\"");
+    }
+
+    @Test
     void runWithoutTargetUsesPicker() throws Exception {
         var project = project("api");
         request(project, "auth/login.dopo", "@name Login\nGET https://example.com/login");

@@ -166,6 +166,26 @@ class DoppioPipelineTest {
     }
 
     @Test
+    void shorthandResolutionCannotEscapeRequestsDirectory() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "");
+        Files.writeString(tempDir.resolve("outside.dopo"), "GET https://example.com/project-outside");
+        Files.writeString(tempDir.resolve(".doppio/outside.dopo"), "GET https://example.com/outside");
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        assertThatThrownBy(() -> pipeline(transport).run(Path.of("../outside"), tempDir, Map.of()))
+            .isInstanceOf(DoppioException.class)
+            .hasMessageContaining("Request path must stay inside .doppio/requests");
+        assertThatThrownBy(() -> pipeline(transport).run(Path.of("../outside"), tempDir.resolve(".doppio"), Map.of()))
+            .isInstanceOf(DoppioException.class)
+            .hasMessageContaining("Request path must stay inside .doppio/requests");
+        assertThatThrownBy(() -> pipeline(transport).run(Path.of("../outside"), tempDir.resolve(".doppio/requests"), Map.of()))
+            .isInstanceOf(DoppioException.class)
+            .hasMessageContaining("Request path must stay inside .doppio/requests");
+        assertThat(transport.callCount).isZero();
+    }
+
+    @Test
     void previewBuildsPreparedRequestWithoutExecutingHttp() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), """

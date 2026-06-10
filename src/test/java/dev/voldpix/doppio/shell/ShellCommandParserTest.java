@@ -15,6 +15,18 @@ class ShellCommandParserTest {
     }
 
     @Test
+    void preservesBackslashesUsedAsPathSeparators() throws Exception {
+        assertThat(parser.parse("run auth\\login"))
+            .containsExactly("run", "auth\\login");
+    }
+
+    @Test
+    void stillAllowsEscapedWhitespaceOutsideQuotes() throws Exception {
+        assertThat(parser.parse("run auth\\ login"))
+            .containsExactly("run", "auth login");
+    }
+
+    @Test
     void rejectsUnterminatedQuotes() {
         assertThatThrownBy(() -> parser.parse("run 'auth/login"))
             .hasMessageContaining("Unterminated quote");

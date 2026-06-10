@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 
 public class ShellCompleter implements Completer {
-    private static final Set<String> REQUEST_COMMANDS = Set.of("run", "preview", "show", "edit", "rm");
+    private static final Set<String> REQUEST_COMMANDS = Set.of("run", "preview", "show", "edit", "format", "check", "rm");
     private static final List<String> COMMANDS = List.of(
         "help",
         "exit",

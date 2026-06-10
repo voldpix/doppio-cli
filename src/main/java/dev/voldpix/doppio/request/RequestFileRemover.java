@@ -35,6 +35,11 @@ public class RequestFileRemover {
         }
 
         var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+        var directCandidate = normalize(workingDirectory.toAbsolutePath().normalize(), requestedPath);
+        if (Files.exists(directCandidate) && !directCandidate.startsWith(requestsDir)) {
+            throw new DoppioException(ErrorKind.FILE, "rm only removes files under .doppio/requests");
+        }
+
         var resolution = requestFileResolver.resolve(requestedPath, workingDirectory);
         var requestFile = resolution.requestFile().toAbsolutePath().normalize();
         if (!requestFile.startsWith(requestsDir)) {
@@ -52,6 +57,22 @@ public class RequestFileRemover {
         }
 
         return new RemovedRequest(relativePath, trashFile);
+    }
+
+    private Path normalize(Path workingDirectory, Path requestedPath) {
+        var candidate = requestedPath.isAbsolute()
+            ? requestedPath.normalize()
+            : workingDirectory.resolve(requestedPath).normalize();
+        var fileName = candidate.getFileName();
+        if (fileName == null) {
+            return candidate;
+        }
+
+        var fileNameText = fileName.toString();
+        if (!fileNameText.endsWith(".dopo") && !fileNameText.contains(".")) {
+            return candidate.resolveSibling(fileNameText + ".dopo");
+        }
+        return candidate;
     }
 
     private Path uniqueTrashPath(Path trashDir, Path relativePath) {

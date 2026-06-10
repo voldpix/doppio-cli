@@ -42,35 +42,43 @@ public class InitCommand implements Callable<Integer> {
 
     private final Path workingDirectory;
     private final PrintWriter out;
+    private final PrintWriter err;
 
-    public InitCommand(Path workingDirectory, PrintWriter out) {
+    public InitCommand(Path workingDirectory, PrintWriter out, PrintWriter err) {
         this.workingDirectory = workingDirectory;
         this.out = out;
+        this.err = err;
     }
 
     @Override
-    public Integer call() throws IOException {
-        var doppioDir = workingDirectory.resolve(".doppio").toAbsolutePath().normalize();
-        var envsDir = doppioDir.resolve("envs");
-        var requestsDir = doppioDir.resolve("requests");
-        Files.createDirectories(doppioDir);
-        Files.createDirectories(envsDir);
-        Files.createDirectories(requestsDir);
+    public Integer call() {
+        try {
+            var doppioDir = workingDirectory.resolve(".doppio").toAbsolutePath().normalize();
+            var envsDir = doppioDir.resolve("envs");
+            var requestsDir = doppioDir.resolve("requests");
+            Files.createDirectories(doppioDir);
+            Files.createDirectories(envsDir);
+            Files.createDirectories(requestsDir);
 
-        writeIfMissing(doppioDir.resolve("default.seed"), DEFAULT_SEED);
-        writeIfMissing(requestsDir.resolve("example.dopo"), EXAMPLE_DOPO);
-        writeIfMissing(requestsDir.resolve("test.dopo"), TEST_DOPO);
+            writeIfMissing(doppioDir.resolve("default.seed"), DEFAULT_SEED);
+            writeIfMissing(requestsDir.resolve("example.dopo"), EXAMPLE_DOPO);
+            writeIfMissing(requestsDir.resolve("test.dopo"), TEST_DOPO);
 
-        out.println("Initialized Doppio project");
-        out.println();
-        out.println(doppioDir);
-        out.println("|-- default.seed");
-        out.println("|-- envs/");
-        out.println("`-- requests/");
-        out.println("    |-- example.dopo");
-        out.println("    `-- test.dopo");
-        out.flush();
-        return 0;
+            out.println("Initialized Doppio project");
+            out.println();
+            out.println(doppioDir);
+            out.println("|-- default.seed");
+            out.println("|-- envs/");
+            out.println("`-- requests/");
+            out.println("    |-- example.dopo");
+            out.println("    `-- test.dopo");
+            out.flush();
+            return 0;
+        } catch (IOException e) {
+            err.println("Init Error: " + e.getMessage());
+            err.flush();
+            return 1;
+        }
     }
 
     private void writeIfMissing(Path path, String content) throws IOException {
