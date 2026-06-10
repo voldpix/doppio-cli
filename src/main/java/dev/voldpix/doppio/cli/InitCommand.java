@@ -54,22 +54,22 @@ public class InitCommand implements Callable<Integer> {
     public Integer call() {
         try {
             var doppioDir = workingDirectory.resolve(".doppio").toAbsolutePath().normalize();
-            var envsDir = doppioDir.resolve("envs");
-            var requestsDir = doppioDir.resolve("requests");
+            var seedsDir = doppioDir.resolve("seeds");
+            var recipesDir = doppioDir.resolve("recipes");
             Files.createDirectories(doppioDir);
-            Files.createDirectories(envsDir);
-            Files.createDirectories(requestsDir);
+            Files.createDirectories(seedsDir);
+            Files.createDirectories(recipesDir);
 
             writeIfMissing(doppioDir.resolve("default.seed"), DEFAULT_SEED);
-            writeIfMissing(requestsDir.resolve("example.dopo"), EXAMPLE_DOPO);
-            writeIfMissing(requestsDir.resolve("test.dopo"), TEST_DOPO);
+            writeIfMissing(recipesDir.resolve("example.dopo"), EXAMPLE_DOPO);
+            writeIfMissing(recipesDir.resolve("test.dopo"), TEST_DOPO);
 
             out.println("Initialized Doppio project");
             out.println();
             out.println(doppioDir);
             out.println("|-- default.seed");
-            out.println("|-- envs/");
-            out.println("`-- requests/");
+            out.println("|-- seeds/");
+            out.println("`-- recipes/");
             out.println("    |-- example.dopo");
             out.println("    `-- test.dopo");
             out.flush();

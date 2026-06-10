@@ -15,7 +15,7 @@ import picocli.CommandLine.Option;
 
 @Command(name = "doctor", mixinStandardHelpOptions = true, description = "Inspect Doppio project health.")
 public class DoctorCommand implements Callable<Integer> {
-    @Option(names = "--env", paramLabel = "NAME", description = "Inspect a selected .doppio/envs/NAME.seed.")
+    @Option(names = "--env", paramLabel = "NAME", description = "Inspect a selected .doppio/seeds/NAME.seed.")
     private String envName;
 
     private final Path workingDirectory;
@@ -48,7 +48,7 @@ public class DoctorCommand implements Callable<Integer> {
             out.println("Warn: 0");
             out.println("Fail: 1");
             out.println();
-            out.printf("%-4s %-10s %s%n", "FAIL", "env", e.getMessage());
+            out.printf("%-4s %-10s %s%n", "FAIL", "seed", e.getMessage());
             out.flush();
             return 1;
         }
@@ -57,7 +57,7 @@ public class DoctorCommand implements Callable<Integer> {
         out.println();
         out.println("Project: " + (report.projectDirectory() == null ? "(not found)" : report.projectDirectory()));
         if (selectedEnvironment.selected()) {
-            out.println("Env: " + selectedEnvironment.name());
+            out.println("Seed: " + selectedEnvironment.name());
         }
         out.println("Pass: " + report.passCount());
         out.println("Warn: " + report.warnCount());

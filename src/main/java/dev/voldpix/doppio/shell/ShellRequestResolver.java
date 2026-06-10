@@ -77,8 +77,8 @@ public class ShellRequestResolver {
 
     private String normalize(String value) {
         return value.replace('\\', '/')
-            .replaceFirst("^\\.doppio/requests/", "")
-            .replaceFirst("^requests/", "")
+            .replaceFirst("^\\.doppio/recipes/", "")
+            .replaceFirst("^recipes/", "")
             .trim();
     }
 

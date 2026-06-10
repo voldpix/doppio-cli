@@ -156,11 +156,11 @@ public class DoppioPipeline {
             return seedValues;
         }
 
-        var envFile = resolution.seedFile().getParent().resolve("envs").resolve(selectedEnvironment.fileName());
+        var envFile = resolution.seedFile().getParent().resolve("seeds").resolve(selectedEnvironment.fileName());
         if (!Files.isRegularFile(envFile)) {
             throw new DoppioException(
                 ErrorKind.SEED,
-                "Environment not found: " + selectedEnvironment.name() + " (" + envFile + ")"
+                "Seed not found: " + selectedEnvironment.name() + " (" + envFile + ")"
             );
         }
         seedValues.putAll(seedFileLoader.loadIfExists(envFile));

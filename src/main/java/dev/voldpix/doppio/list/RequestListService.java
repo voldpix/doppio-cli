@@ -28,9 +28,9 @@ public class RequestListService {
     public List<RequestListEntry> list(Path workingDirectory) throws DoppioException {
         var doppioDir = projectDirectory(workingDirectory);
 
-        var requestsDir = doppioDir.resolve("requests");
+        var requestsDir = doppioDir.resolve("recipes");
         if (!Files.isDirectory(requestsDir)) {
-            throw new DoppioException(ErrorKind.FILE, "Requests folder not found: " + requestsDir);
+            throw new DoppioException(ErrorKind.FILE, "Recipes folder not found: " + requestsDir);
         }
 
         try (var files = Files.walk(requestsDir)) {
@@ -41,7 +41,7 @@ public class RequestListService {
                 .map(path -> toEntry(requestsDir, path))
                 .toList();
         } catch (IOException e) {
-            throw new DoppioException(ErrorKind.FILE, "Unable to list requests: " + requestsDir, e);
+            throw new DoppioException(ErrorKind.FILE, "Unable to list recipes: " + requestsDir, e);
         }
     }
 

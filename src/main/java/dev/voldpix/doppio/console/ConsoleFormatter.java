@@ -51,7 +51,7 @@ public class ConsoleFormatter {
         }
         out.printf("File: %s%n", report.requestFile());
         if (report.environmentName() != null) {
-            out.printf("Env: %s%n", report.environmentName());
+            out.printf("Seed: %s%n", report.environmentName());
         }
         out.printf("Request: %s %s%n", style(request.method().name(), BOLD), style(request.uri().toString(), CYAN));
         out.printf("Result: %s %d  %dms%n",
@@ -96,7 +96,7 @@ public class ConsoleFormatter {
         }
         out.printf("File: %s%n", report.requestFile());
         if (report.environmentName() != null) {
-            out.printf("Env: %s%n", report.environmentName());
+            out.printf("Seed: %s%n", report.environmentName());
         }
         out.printf("Request: %s %s%n",
             style(report.request().method().name(), BOLD),

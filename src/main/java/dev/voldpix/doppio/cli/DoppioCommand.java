@@ -27,7 +27,7 @@ import java.util.concurrent.Callable;
     name = "doppio",
     mixinStandardHelpOptions = true,
     version = "doppio 1.0-SNAPSHOT",
-    description = "Console-first HTTP request execution."
+    description = "Brew HTTP requests from the console."
 )
 public class DoppioCommand implements Callable<Integer> {
     @Spec

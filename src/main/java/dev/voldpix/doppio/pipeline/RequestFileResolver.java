@@ -32,7 +32,7 @@ public class RequestFileResolver {
         }
 
         var seedFile = seedFile(doppioDir);
-        var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+        var requestsDir = doppioDir.resolve("recipes").toAbsolutePath().normalize();
         if (isInside(normalizedWorkingDirectory, requestsDir) && Files.exists(directCandidate)) {
             return existingProjectRequestFile(directCandidate, seedFile, requestsDir, requestedFile);
         }
@@ -45,7 +45,7 @@ public class RequestFileResolver {
         if (!requestsCandidate.startsWith(requestsDir)) {
             throw new DoppioException(
                 ErrorKind.FILE,
-                "Request path must stay inside .doppio/requests: " + requestedFile
+                "Request path must stay inside .doppio/recipes: " + requestedFile
             );
         }
         if (Files.exists(requestsCandidate)) {
@@ -54,7 +54,7 @@ public class RequestFileResolver {
 
         throw new DoppioException(
             ErrorKind.FILE,
-            "Request file not found in .doppio/requests: " + requestedFile
+            "Request file not found in .doppio/recipes: " + requestedFile
         );
     }
 
@@ -119,7 +119,7 @@ public class RequestFileResolver {
         if (!file.toAbsolutePath().normalize().startsWith(requestsDir)) {
             throw new DoppioException(
                 ErrorKind.FILE,
-                "Request path must stay inside .doppio/requests: " + requestedFile
+                "Request path must stay inside .doppio/recipes: " + requestedFile
             );
         }
         return existingFile(file, seedFile);
@@ -137,7 +137,7 @@ public class RequestFileResolver {
             return false;
         }
         var first = requestedFile.getName(0).toString();
-        return ".doppio".equals(first) || "requests".equals(first);
+        return ".doppio".equals(first) || "recipes".equals(first);
     }
 
     private boolean isInside(Path child, Path parent) {

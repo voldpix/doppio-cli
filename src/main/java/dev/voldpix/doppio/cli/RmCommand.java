@@ -9,9 +9,9 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
-@Command(name = "rm", mixinStandardHelpOptions = true, description = "Move a request file to .doppio/trash.")
+@Command(name = "rm", mixinStandardHelpOptions = true, description = "Move a recipe file to .doppio/trash.")
 public class RmCommand implements Callable<Integer> {
-    @Parameters(index = "0", paramLabel = "FILE", description = "Request path to remove from .doppio/requests.")
+    @Parameters(index = "0", paramLabel = "FILE", description = "Request path to remove from .doppio/recipes.")
     private Path file;
 
     private final Path workingDirectory;
@@ -30,7 +30,7 @@ public class RmCommand implements Callable<Integer> {
     public Integer call() {
         try {
             var removed = remover.remove(file, workingDirectory);
-            out.println("Moved request to trash");
+            out.println("Moved recipe to trash");
             out.println("  File: " + removed.relativePath());
             out.println("  Trash: " + removed.trashFile());
             out.flush();

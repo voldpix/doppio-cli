@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-@Command(name = "gen", mixinStandardHelpOptions = true, description = "Create a request file under .doppio/requests.")
+@Command(name = "gen", mixinStandardHelpOptions = true, description = "Create a request file under .doppio/recipes.")
 public class GenCommand implements Callable<Integer> {
     @Parameters(index = "0", arity = "0..1", paramLabel = "FILE", description = "Request path to create, with or without .dopo.")
     private Path file;
@@ -40,7 +40,7 @@ public class GenCommand implements Callable<Integer> {
     @Option(names = "--from-curl", paramLabel = "CURL", description = "Create a request from a basic curl command.")
     private String fromCurl;
 
-    @Option(names = "--env", paramLabel = "NAME", description = "Create .doppio/envs/NAME.seed.")
+    @Option(names = "--env", paramLabel = "NAME", description = "Create .doppio/seeds/NAME.seed.")
     private String envName;
 
     private final Path workingDirectory;
@@ -72,7 +72,7 @@ public class GenCommand implements Callable<Integer> {
         try {
             if (envName != null) {
                 var created = createEnvironment();
-                out.println("Created environment");
+                out.println("Created seed");
                 out.println("  File: " + created.relativePath());
                 out.println("  Path: " + created.requestFile());
             } else {
@@ -82,7 +82,7 @@ public class GenCommand implements Callable<Integer> {
                 var created = fromCurl == null
                     ? creator.create(file, workingDirectory, options())
                     : creator.createFromCurl(file, workingDirectory, curlImport());
-                out.println("Created request");
+                out.println("Created recipe");
                 out.println("  File: " + created.relativePath());
                 out.println("  Path: " + created.requestFile());
             }

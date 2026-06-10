@@ -62,18 +62,18 @@ public class DoppioDoctorService {
 
         var selectedEnvAvailable = checkEnvironments(projectDir, selectedEnvironment, findings);
 
-        var requestsDir = projectDir.resolve("requests");
+        var requestsDir = projectDir.resolve("recipes");
         if (!Files.isDirectory(requestsDir)) {
-            findings.add(fail("requests", "requests folder not found: " + requestsDir));
+            findings.add(fail("recipes", "recipes folder not found: " + requestsDir));
             return new DoctorReport(projectDir, findings);
         }
-        findings.add(pass("requests", "requests folder found"));
+        findings.add(pass("recipes", "recipes folder found"));
 
         var requestCount = countRequests(requestsDir, findings);
         if (requestCount == 0) {
-            findings.add(warn("requests", "No .dopo request files found"));
+            findings.add(warn("recipes", "No .dopo recipe files found"));
         } else if (requestCount > 0) {
-            findings.add(pass("requests", requestCount + " request file(s) found"));
+            findings.add(pass("recipes", requestCount + " recipe file(s) found"));
         }
 
         if (selectedEnvAvailable) {
@@ -87,30 +87,30 @@ public class DoppioDoctorService {
         DoppioEnvironment selectedEnvironment,
         ArrayList<DoctorFinding> findings
     ) {
-        var envsDir = projectDir.resolve("envs");
-        if (!Files.isDirectory(envsDir)) {
-            findings.add(warn("env", "envs folder not found; create one with `doppio gen --env dev`"));
+        var seedsDir = projectDir.resolve("seeds");
+        if (!Files.isDirectory(seedsDir)) {
+            findings.add(warn("seed", "seeds folder not found; create one with `doppio gen --env dev`"));
             if (selectedEnvironment.selected()) {
-                findings.add(fail("env", "Selected env not found: " + selectedEnvironment.name()));
+                findings.add(fail("seed", "Selected seed not found: " + selectedEnvironment.name()));
                 return false;
             }
             return true;
         }
 
-        var envNames = environmentNames(envsDir, findings);
-        if (envNames.isEmpty()) {
-            findings.add(pass("env", "envs folder found; no env files yet"));
+        var seedNames = environmentNames(seedsDir, findings);
+        if (seedNames.isEmpty()) {
+            findings.add(pass("seed", "seeds folder found; no seed overlays yet"));
         } else {
-            findings.add(pass("env", envNames.size() + " env file(s) found: " + String.join(", ", envNames)));
+            findings.add(pass("seed", seedNames.size() + " seed overlay(s) found: " + String.join(", ", seedNames)));
         }
 
         if (selectedEnvironment.selected()) {
-            var envFile = envsDir.resolve(selectedEnvironment.fileName());
-            if (Files.isRegularFile(envFile)) {
-                findings.add(pass("env", "Selected env found: " + selectedEnvironment.name()));
+            var seedFile = seedsDir.resolve(selectedEnvironment.fileName());
+            if (Files.isRegularFile(seedFile)) {
+                findings.add(pass("seed", "Selected seed found: " + selectedEnvironment.name()));
                 return true;
             }
-            findings.add(fail("env", "Selected env not found: " + selectedEnvironment.name() + " (" + envFile + ")"));
+            findings.add(fail("seed", "Selected seed not found: " + selectedEnvironment.name() + " (" + seedFile + ")"));
             return false;
         }
 
@@ -127,7 +127,7 @@ public class DoppioDoctorService {
                 .sorted(Comparator.naturalOrder())
                 .toList();
         } catch (IOException e) {
-            findings.add(fail("env", "Unable to list env files: " + e.getMessage()));
+            findings.add(fail("seed", "Unable to list seed overlays: " + e.getMessage()));
             return java.util.List.of();
         }
     }
@@ -139,7 +139,7 @@ public class DoppioDoctorService {
                 .filter(file -> file.getFileName().toString().endsWith(".dopo"))
                 .count();
         } catch (IOException e) {
-            findings.add(fail("requests", "Unable to count request files: " + e.getMessage()));
+            findings.add(fail("recipes", "Unable to count request files: " + e.getMessage()));
             return -1;
         }
     }

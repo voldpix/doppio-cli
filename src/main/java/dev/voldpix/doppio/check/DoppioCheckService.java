@@ -63,7 +63,7 @@ public class DoppioCheckService {
             if (doppioDir == null) {
                 throw new DoppioException(ErrorKind.FILE, "No .doppio project found. Run `doppio init` first.");
             }
-            return dopoFiles(doppioDir.resolve("requests"));
+            return dopoFiles(doppioDir.resolve("recipes"));
         }
 
         var directCandidate = requestedPath.isAbsolute()
@@ -74,7 +74,7 @@ public class DoppioCheckService {
         }
 
         if (doppioDir != null && !requestedPath.isAbsolute()) {
-            var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+            var requestsDir = doppioDir.resolve("recipes").toAbsolutePath().normalize();
             var requestsCandidate = requestsDir.resolve(requestedPath).normalize();
             if (requestsCandidate.startsWith(requestsDir) && Files.isDirectory(requestsCandidate)) {
                 return dopoFiles(requestsCandidate);
@@ -86,7 +86,7 @@ public class DoppioCheckService {
 
     private List<Path> dopoFiles(Path directory) throws DoppioException {
         if (!Files.isDirectory(directory)) {
-            throw new DoppioException(ErrorKind.FILE, "Request folder not found: " + directory);
+            throw new DoppioException(ErrorKind.FILE, "Recipe folder not found: " + directory);
         }
 
         try (var files = Files.walk(directory)) {
@@ -97,7 +97,7 @@ public class DoppioCheckService {
                 .sorted(Comparator.comparing(Path::toString))
                 .toList();
         } catch (IOException e) {
-            throw new DoppioException(ErrorKind.FILE, "Unable to list request files: " + directory, e);
+            throw new DoppioException(ErrorKind.FILE, "Unable to list recipe files: " + directory, e);
         }
     }
 
@@ -126,7 +126,7 @@ public class DoppioCheckService {
 
     private String displayPath(Path file, Path cwd, Path doppioDir) {
         if (doppioDir != null) {
-            var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+            var requestsDir = doppioDir.resolve("recipes").toAbsolutePath().normalize();
             if (file.startsWith(requestsDir)) {
                 return requestsDir.relativize(file).toString();
             }

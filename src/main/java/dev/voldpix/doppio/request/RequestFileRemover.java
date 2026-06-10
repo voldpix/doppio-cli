@@ -34,16 +34,16 @@ public class RequestFileRemover {
             throw new DoppioException(ErrorKind.FILE, "No .doppio project found");
         }
 
-        var requestsDir = doppioDir.resolve("requests").toAbsolutePath().normalize();
+        var requestsDir = doppioDir.resolve("recipes").toAbsolutePath().normalize();
         var directCandidate = normalize(workingDirectory.toAbsolutePath().normalize(), requestedPath);
         if (Files.exists(directCandidate) && !directCandidate.startsWith(requestsDir)) {
-            throw new DoppioException(ErrorKind.FILE, "rm only removes files under .doppio/requests");
+            throw new DoppioException(ErrorKind.FILE, "rm only removes files under .doppio/recipes");
         }
 
         var resolution = requestFileResolver.resolve(requestedPath, workingDirectory);
         var requestFile = resolution.requestFile().toAbsolutePath().normalize();
         if (!requestFile.startsWith(requestsDir)) {
-            throw new DoppioException(ErrorKind.FILE, "rm only removes files under .doppio/requests");
+            throw new DoppioException(ErrorKind.FILE, "rm only removes files under .doppio/recipes");
         }
 
         var relativePath = requestsDir.relativize(requestFile);

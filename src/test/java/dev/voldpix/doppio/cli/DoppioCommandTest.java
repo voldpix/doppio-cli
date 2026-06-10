@@ -33,12 +33,12 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(tempDir.resolve(".doppio/default.seed")).exists();
-        assertThat(tempDir.resolve(".doppio/envs")).isDirectory();
+        assertThat(tempDir.resolve(".doppio/seeds")).isDirectory();
         assertThat(tempDir.resolve(".doppio/local.seed")).doesNotExist();
-        assertThat(tempDir.resolve(".doppio/requests/example.dopo")).exists();
-        assertThat(tempDir.resolve(".doppio/requests/test.dopo")).exists();
-        assertThat(tempDir.resolve("requests")).doesNotExist();
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/test.dopo")))
+        assertThat(tempDir.resolve(".doppio/recipes/example.dopo")).exists();
+        assertThat(tempDir.resolve(".doppio/recipes/test.dopo")).exists();
+        assertThat(tempDir.resolve("recipes")).doesNotExist();
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/test.dopo")))
             .contains("@name Smoke test")
             .contains("GET {{BASE_URL}}/get")
             .contains("{{TEST_ID}}");
@@ -46,13 +46,13 @@ class DoppioCommandTest {
             .contains("Initialized Doppio project")
             .contains(tempDir.resolve(".doppio").toAbsolutePath().normalize().toString())
             .contains("|-- default.seed")
-            .contains("|-- envs/")
-            .contains("`-- requests/")
+            .contains("|-- seeds/")
+            .contains("`-- recipes/")
             .contains("|-- example.dopo")
             .contains("`-- test.dopo");
 
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "TOKEN=keep-me");
-        Files.writeString(tempDir.resolve(".doppio/requests/test.dopo"), "GET https://keep.example.com");
+        Files.writeString(tempDir.resolve(".doppio/recipes/test.dopo"), "GET https://keep.example.com");
         DoppioCommand.commandLine(
             tempDir,
             Map.of(),
@@ -62,7 +62,7 @@ class DoppioCommandTest {
         ).execute("init");
 
         assertThat(Files.readString(tempDir.resolve(".doppio/default.seed"))).isEqualTo("TOKEN=keep-me");
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/test.dopo"))).isEqualTo("GET https://keep.example.com");
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/test.dopo"))).isEqualTo("GET https://keep.example.com");
     }
 
     @Test
@@ -88,8 +88,8 @@ class DoppioCommandTest {
     void runPrintsRequestAndResponseReport() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login request
             GET {{BASE_URL}}/get
             -h Accept=application/json
@@ -117,9 +117,9 @@ class DoppioCommandTest {
 
     @Test
     void runCanPrintJsonReportForAgents() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login request
             GET {{BASE_URL}}/get
             -h Accept=application/json
@@ -148,11 +148,11 @@ class DoppioCommandTest {
 
     @Test
     void runCanUseSelectedEnvironment() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/envs"));
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/seeds"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
-        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/seeds/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login request
             GET {{BASE_URL}}/get
             """);
@@ -168,7 +168,7 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(out.toString())
-            .contains("Env: dev")
+            .contains("Seed: dev")
             .contains("https://dev.example.com/get");
     }
 
@@ -193,8 +193,8 @@ class DoppioCommandTest {
 
     @Test
     void runPrintsExpectationResults() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/expect.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/expect.dopo"), """
             @expect status=200
             @expect header content-type contains json
             @expect body contains ok
@@ -222,8 +222,8 @@ class DoppioCommandTest {
 
     @Test
     void runJsonFailsWhenExpectationFails() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/expect-fail.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/expect-fail.dopo"), """
             @expect status=200
             @expect body contains missing
             GET https://example.com/get
@@ -251,8 +251,8 @@ class DoppioCommandTest {
 
     @Test
     void runCanSaveReportNextToResolvedRequestFile() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login request
             GET https://example.com/get
             """);
@@ -268,7 +268,7 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(out.toString()).contains("Saved report:");
-        var reports = Files.list(tempDir.resolve(".doppio/requests/auth"))
+        var reports = Files.list(tempDir.resolve(".doppio/recipes/auth"))
             .filter(path -> path.getFileName().toString().matches("login-\\d{13}\\.txt"))
             .toList();
         assertThat(reports).hasSize(1);
@@ -281,7 +281,7 @@ class DoppioCommandTest {
 
     @Test
     void genCreatesEditableRequestPlaceholderUnderRequestsFolder() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         var out = new StringWriter();
         var err = new StringWriter();
 
@@ -293,7 +293,7 @@ class DoppioCommandTest {
             new FakeTransport()
         ).execute("gen", "auth/login");
 
-        var requestFile = tempDir.resolve(".doppio/requests/auth/login.dopo");
+        var requestFile = tempDir.resolve(".doppio/recipes/auth/login.dopo");
         assertThat(exit).isZero();
         assertThat(err.toString()).isBlank();
         assertThat(requestFile).exists();
@@ -303,13 +303,13 @@ class DoppioCommandTest {
             .contains("-h Content-Type=application/json")
             .contains("<json|");
         assertThat(out.toString())
-            .contains("Created request")
+            .contains("Created recipe")
             .contains("auth/login.dopo");
     }
 
     @Test
     void genCanCreateEnvironmentSeedFiles() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         var out = new StringWriter();
         var err = new StringWriter();
 
@@ -321,7 +321,7 @@ class DoppioCommandTest {
             new FakeTransport()
         ).execute("gen", "--env", "dev");
 
-        var envFile = tempDir.resolve(".doppio/envs/dev.seed");
+        var envFile = tempDir.resolve(".doppio/seeds/dev.seed");
         assertThat(exit).isZero();
         assertThat(err.toString()).isBlank();
         assertThat(envFile).exists();
@@ -330,8 +330,8 @@ class DoppioCommandTest {
             .contains("BASE_URL=https://api.dev.example.com")
             .contains("TOKEN=");
         assertThat(out.toString())
-            .contains("Created environment")
-            .contains("envs/dev.seed");
+            .contains("Created seed")
+            .contains("seeds/dev.seed");
 
         err.getBuffer().setLength(0);
         var overwriteExit = DoppioCommand.commandLine(
@@ -343,7 +343,7 @@ class DoppioCommandTest {
         ).execute("gen", "--env", "dev");
 
         assertThat(overwriteExit).isEqualTo(1);
-        assertThat(err.toString()).contains("Environment already exists: dev");
+        assertThat(err.toString()).contains("Seed already exists: dev");
 
         err.getBuffer().setLength(0);
         var mixedExit = DoppioCommand.commandLine(
@@ -356,7 +356,7 @@ class DoppioCommandTest {
 
         assertThat(mixedExit).isEqualTo(1);
         assertThat(err.toString()).contains("--env cannot be combined");
-        assertThat(tempDir.resolve(".doppio/envs/staging.seed")).doesNotExist();
+        assertThat(tempDir.resolve(".doppio/seeds/staging.seed")).doesNotExist();
 
         err.getBuffer().setLength(0);
         var defaultExit = DoppioCommand.commandLine(
@@ -368,13 +368,13 @@ class DoppioCommandTest {
         ).execute("gen", "--env", "default");
 
         assertThat(defaultExit).isEqualTo(1);
-        assertThat(err.toString()).contains("built-in environment");
-        assertThat(tempDir.resolve(".doppio/envs/default.seed")).doesNotExist();
+        assertThat(err.toString()).contains("built-in seed");
+        assertThat(tempDir.resolve(".doppio/seeds/default.seed")).doesNotExist();
     }
 
     @Test
     void genMethodGetCreatesNoBodyByDefault() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
 
         var exit = DoppioCommand.commandLine(
             tempDir,
@@ -385,7 +385,7 @@ class DoppioCommandTest {
         ).execute("gen", "users/me", "--method", "GET");
 
         assertThat(exit).isZero();
-        var content = Files.readString(tempDir.resolve(".doppio/requests/users/me.dopo"));
+        var content = Files.readString(tempDir.resolve(".doppio/recipes/users/me.dopo"));
         assertThat(content)
             .contains("@name Me")
             .contains("GET {{BASE_URL}}/path")
@@ -398,7 +398,7 @@ class DoppioCommandTest {
 
     @Test
     void genMethodPostCanExplicitlyCreateNoBody() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
 
         var exit = DoppioCommand.commandLine(
             tempDir,
@@ -409,7 +409,7 @@ class DoppioCommandTest {
         ).execute("gen", "jobs/start", "--method", "POST", "--body", "none");
 
         assertThat(exit).isZero();
-        var content = Files.readString(tempDir.resolve(".doppio/requests/jobs/start.dopo"));
+        var content = Files.readString(tempDir.resolve(".doppio/recipes/jobs/start.dopo"));
         assertThat(content)
             .contains("POST {{BASE_URL}}/path")
             .doesNotContain("Content-Type")
@@ -421,7 +421,7 @@ class DoppioCommandTest {
 
     @Test
     void genCreatesTypedBodyPlaceholdersAndDefaultContentTypes() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
 
         assertGeneratedBody("json-request", "json", "<json|", "\"key\": \"value\"", "Content-Type=application/json");
         assertGeneratedBody("text-request", "text", "<text|", "hello", "Content-Type=text/plain; charset=utf-8");
@@ -431,7 +431,7 @@ class DoppioCommandTest {
 
     @Test
     void genAddsBearerHeadersAndQueries() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
 
         var exit = DoppioCommand.commandLine(
             tempDir,
@@ -456,7 +456,7 @@ class DoppioCommandTest {
         );
 
         assertThat(exit).isZero();
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/users/search.dopo")))
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/users/search.dopo")))
             .contains("GET {{BASE_URL}}/path")
             .contains("-h Authorization=Bearer {{TOKEN}}")
             .contains("-h X-Client=doppio")
@@ -468,7 +468,7 @@ class DoppioCommandTest {
 
     @Test
     void genDoesNotInjectDefaultContentTypeWhenUserProvidesOne() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
 
         var exit = DoppioCommand.commandLine(
             tempDir,
@@ -479,14 +479,14 @@ class DoppioCommandTest {
         ).execute("gen", "custom/content", "--body", "json", "-H", "Content-Type=application/custom");
 
         assertThat(exit).isZero();
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/custom/content.dopo")))
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/custom/content.dopo")))
             .contains("-h Content-Type=application/custom")
             .doesNotContain("-h Content-Type=application/json");
     }
 
     @Test
     void genRejectsInvalidHelperOptionsWithoutCreatingFiles() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
 
         assertInvalidGen("bad-method", "Unsupported method", "gen", "bad-method", "--method", "FETCH");
         assertInvalidGen("bad-body", "Unsupported body kind", "gen", "bad-body", "--body", "xml");
@@ -497,8 +497,8 @@ class DoppioCommandTest {
 
     @Test
     void genRejectsOverwritesAndInternalRequestsPrefix() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/existing.dopo"), "GET https://example.com");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/existing.dopo"), "GET https://example.com");
         var err = new StringWriter();
 
         var overwriteExit = DoppioCommand.commandLine(
@@ -511,7 +511,7 @@ class DoppioCommandTest {
 
         assertThat(overwriteExit).isEqualTo(1);
         assertThat(err.toString()).contains("Request already exists");
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/existing.dopo")))
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/existing.dopo")))
             .isEqualTo("GET https://example.com");
 
         err.getBuffer().setLength(0);
@@ -521,15 +521,15 @@ class DoppioCommandTest {
             new PrintWriter(new StringWriter(), true),
             new PrintWriter(err, true),
             new FakeTransport()
-        ).execute("gen", "requests/auth/login");
+        ).execute("gen", "recipes/auth/login");
 
         assertThat(prefixedExit).isEqualTo(1);
-        assertThat(err.toString()).contains("without .doppio/requests");
+        assertThat(err.toString()).contains("without .doppio/recipes");
     }
 
     @Test
     void genFromCurlCreatesRequestFromBasicCurlCommand() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         var out = new StringWriter();
 
         var exit = DoppioCommand.commandLine(
@@ -551,8 +551,8 @@ class DoppioCommandTest {
         );
 
         assertThat(exit).isZero();
-        assertThat(out.toString()).contains("Created request").contains("auth/login.dopo");
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/auth/login.dopo"))).isEqualTo("""
+        assertThat(out.toString()).contains("Created recipe").contains("auth/login.dopo");
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/auth/login.dopo"))).isEqualTo("""
             @name Login
             POST https://api.example.com/auth/login
             -h Content-Type=application/json
@@ -568,7 +568,7 @@ class DoppioCommandTest {
 
     @Test
     void genFromCurlCreatesFormBodyAndDefaultContentType() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
 
         var exit = DoppioCommand.commandLine(
             tempDir,
@@ -584,7 +584,7 @@ class DoppioCommandTest {
         );
 
         assertThat(exit).isZero();
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/auth/form-login.dopo"))).isEqualTo("""
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/auth/form-login.dopo"))).isEqualTo("""
             @name Form Login
             POST https://api.example.com/login
             -h Content-Type=application/x-www-form-urlencoded
@@ -599,7 +599,7 @@ class DoppioCommandTest {
 
     @Test
     void genFromCurlRejectsUnsupportedOptionsAndHelperMixing() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         var err = new StringWriter();
 
         var unsupportedExit = DoppioCommand.commandLine(
@@ -612,7 +612,7 @@ class DoppioCommandTest {
 
         assertThat(unsupportedExit).isEqualTo(1);
         assertThat(err.toString()).contains("Unsupported curl option: -I");
-        assertThat(tempDir.resolve(".doppio/requests/bad/import.dopo")).doesNotExist();
+        assertThat(tempDir.resolve(".doppio/recipes/bad/import.dopo")).doesNotExist();
 
         err.getBuffer().setLength(0);
         var mixedExit = DoppioCommand.commandLine(
@@ -625,13 +625,13 @@ class DoppioCommandTest {
 
         assertThat(mixedExit).isEqualTo(1);
         assertThat(err.toString()).contains("--from-curl cannot be combined");
-        assertThat(tempDir.resolve(".doppio/requests/bad/mixed.dopo")).doesNotExist();
+        assertThat(tempDir.resolve(".doppio/recipes/bad/mixed.dopo")).doesNotExist();
     }
 
     @Test
     void showPrintsRequestDetailsWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             @var EMAIL=user@example.com
             @expect status=200
@@ -675,8 +675,8 @@ class DoppioCommandTest {
 
     @Test
     void showCanPrintJsonInspectionWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             @var EMAIL=user@example.com
             @expect body contains ok
@@ -713,12 +713,12 @@ class DoppioCommandTest {
 
     @Test
     void previewHydratesRequestWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), """
             BASE_URL=https://seed.example.com
             TOKEN=seed-token
             """);
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             @var TOKEN=local-token
             POST {{BASE_URL}}/auth/login
@@ -753,9 +753,9 @@ class DoppioCommandTest {
 
     @Test
     void previewCanPrintJsonForAgents() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/text.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/text.dopo"), """
             @name Text ping
             @expect body contains hello
             POST {{BASE_URL}}/ping
@@ -790,11 +790,11 @@ class DoppioCommandTest {
 
     @Test
     void previewJsonIncludesSelectedEnvironment() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/envs"));
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/seeds"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
-        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/ping.dopo"), "GET {{BASE_URL}}/ping");
+        Files.writeString(tempDir.resolve(".doppio/seeds/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/recipes/ping.dopo"), "GET {{BASE_URL}}/ping");
         var out = new StringWriter();
         var transport = new FakeTransport();
 
@@ -815,8 +815,8 @@ class DoppioCommandTest {
 
     @Test
     void previewJsonErrorsDoNotExecuteHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/missing.dopo"), "GET https://example.com/{{MISSING}}");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/missing.dopo"), "GET https://example.com/{{MISSING}}");
         var out = new StringWriter();
         var err = new StringWriter();
         var transport = new FakeTransport();
@@ -840,8 +840,8 @@ class DoppioCommandTest {
 
     @Test
     void showResolvesOptionalDopoExtensionFromProjectRootAndDoppioDirectory() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             GET https://example.com/login
             """);
@@ -877,11 +877,11 @@ class DoppioCommandTest {
 
     @Test
     void cleanRemovesSavedReportsUnderRequestsFolder() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login-1700000000000.txt"), "old report");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/notes.txt"), "keep");
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), "GET {{BASE_URL}}/login");
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login-1700000000000.txt"), "old report");
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/notes.txt"), "keep");
         var out = new StringWriter();
 
         var exit = DoppioCommand.commandLine(
@@ -894,14 +894,14 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(out.toString()).contains("Removed 1 saved report");
-        assertThat(tempDir.resolve(".doppio/requests/auth/login-1700000000000.txt")).doesNotExist();
-        assertThat(tempDir.resolve(".doppio/requests/auth/notes.txt")).exists();
+        assertThat(tempDir.resolve(".doppio/recipes/auth/login-1700000000000.txt")).doesNotExist();
+        assertThat(tempDir.resolve(".doppio/recipes/auth/notes.txt")).exists();
     }
 
     @Test
     void rmMovesRequestFileToDoppioTrash() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        var requestFile = tempDir.resolve(".doppio/requests/auth/login.dopo");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        var requestFile = tempDir.resolve(".doppio/recipes/auth/login.dopo");
         Files.writeString(requestFile, "GET https://example.com/login");
         var out = new StringWriter();
 
@@ -922,13 +922,13 @@ class DoppioCommandTest {
             assertThat(Files.readString(files.getFirst())).isEqualTo("GET https://example.com/login");
         }
         assertThat(out.toString())
-            .contains("Moved request to trash")
+            .contains("Moved recipe to trash")
             .contains("auth/login.dopo");
     }
 
     @Test
     void rmRejectsFilesOutsideRequestsFolder() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         var looseFile = tempDir.resolve(".doppio/loose.dopo");
         Files.writeString(looseFile, "GET https://example.com");
         var err = new StringWriter();
@@ -943,18 +943,18 @@ class DoppioCommandTest {
 
         assertThat(exit).isEqualTo(1);
         assertThat(looseFile).exists();
-        assertThat(err.toString()).contains("rm only removes files under .doppio/requests");
+        assertThat(err.toString()).contains("rm only removes files under .doppio/recipes");
     }
 
     @Test
     void listPrintsRequestTreeWithoutInternalRequestsFolder() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             POST https://example.com/login
             """);
-        Files.writeString(tempDir.resolve(".doppio/requests/test.dopo"), "GET https://example.com/test");
-        Files.writeString(tempDir.resolve(".doppio/requests/bad.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/test.dopo"), "GET https://example.com/test");
+        Files.writeString(tempDir.resolve(".doppio/recipes/bad.dopo"), """
             @name Broken request
             FETCH nope
             """);
@@ -970,20 +970,20 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(out.toString())
-            .contains("Requests")
+            .contains("Recipes")
             .contains(tempDir.resolve(".doppio").toAbsolutePath().normalize().toString())
-            .contains("`-- requests/")
+            .contains("`-- recipes/")
             .contains("auth/")
             .contains("Login user (auth/login.dopo)")
             .contains("test (test.dopo)")
             .contains("Broken request (bad.dopo) [parse error]")
-            .doesNotContain(".doppio/requests");
+            .doesNotContain(".doppio/recipes");
     }
 
     @Test
     void lsAliasPrintsRequestTreeLikeList() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             GET https://example.com/login
             """);
@@ -999,7 +999,7 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(out.toString())
-            .contains("Requests")
+            .contains("Recipes")
             .contains(tempDir.resolve(".doppio").toAbsolutePath().normalize().toString())
             .contains("auth/")
             .contains("Login user (auth/login.dopo)");
@@ -1007,12 +1007,12 @@ class DoppioCommandTest {
 
     @Test
     void lsAliasCanPrintJsonRequestIndex() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             GET https://example.com/login
             """);
-        Files.writeString(tempDir.resolve(".doppio/requests/bad.dopo"), "FETCH nope");
+        Files.writeString(tempDir.resolve(".doppio/recipes/bad.dopo"), "FETCH nope");
         var out = new StringWriter();
 
         var exit = DoppioCommand.commandLine(
@@ -1035,13 +1035,13 @@ class DoppioCommandTest {
 
     @Test
     void checkValidatesAllRequestsWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @expect status=200
             GET {{BASE_URL}}/login
             """);
-        Files.writeString(tempDir.resolve(".doppio/requests/broken.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/broken.dopo"), """
             POST {{BASE_URL}}/broken
             <json|
             {"name":}
@@ -1071,10 +1071,10 @@ class DoppioCommandTest {
 
     @Test
     void checkCanTargetFolderAndFileWithOptionalExtension() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET https://example.com/login");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/refresh.dopo"), "GET https://example.com/refresh");
-        Files.writeString(tempDir.resolve(".doppio/requests/other.dopo"), "GET https://example.com/other");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), "GET https://example.com/login");
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/refresh.dopo"), "GET https://example.com/refresh");
+        Files.writeString(tempDir.resolve(".doppio/recipes/other.dopo"), "GET https://example.com/other");
         var transport = new FakeTransport();
         var folderOut = new StringWriter();
 
@@ -1112,11 +1112,11 @@ class DoppioCommandTest {
 
     @Test
     void checkCanUseSelectedEnvironment() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/envs"));
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/seeds"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
-        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/env.dopo"), "GET {{BASE_URL}}/health");
+        Files.writeString(tempDir.resolve(".doppio/seeds/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/recipes/env.dopo"), "GET {{BASE_URL}}/health");
         var out = new StringWriter();
         var transport = new FakeTransport();
 
@@ -1131,15 +1131,15 @@ class DoppioCommandTest {
         assertThat(exit).isZero();
         assertThat(transport.callCount).isZero();
         assertThat(out.toString())
-            .contains("Env: dev")
+            .contains("Seed: dev")
             .contains("Valid: 1")
             .contains("valid   env.dopo");
     }
 
     @Test
     void checkReportsInvalidExpectationWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/bad-expect.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/bad-expect.dopo"), """
             @expect header Content-Type equals json
             GET https://example.com
             """);
@@ -1164,9 +1164,9 @@ class DoppioCommandTest {
 
     @Test
     void doctorReportsHealthyProjectWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/health.dopo"), "GET {{BASE_URL}}/health");
+        Files.writeString(tempDir.resolve(".doppio/recipes/health.dopo"), "GET {{BASE_URL}}/health");
         var out = new StringWriter();
         var transport = new FakeTransport();
 
@@ -1185,7 +1185,7 @@ class DoppioCommandTest {
             .contains("Project: " + tempDir.resolve(".doppio").toAbsolutePath().normalize())
             .contains("PASS project")
             .contains("PASS seed")
-            .contains("PASS requests")
+            .contains("PASS recipes")
             .contains("PASS check")
             .contains("Fail: 0");
     }
@@ -1208,8 +1208,8 @@ class DoppioCommandTest {
             .contains("FAIL project")
             .contains("No .doppio project found");
 
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/broken.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/broken.dopo"), """
             POST https://example.com
             <json|
             {"name":}
@@ -1234,11 +1234,11 @@ class DoppioCommandTest {
 
     @Test
     void doctorReportsSelectedEnvironment() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/envs"));
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/seeds"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
-        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/health.dopo"), "GET {{BASE_URL}}/health");
+        Files.writeString(tempDir.resolve(".doppio/seeds/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/recipes/health.dopo"), "GET {{BASE_URL}}/health");
         var out = new StringWriter();
 
         var exit = DoppioCommand.commandLine(
@@ -1251,10 +1251,10 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(out.toString())
-            .contains("Env: dev")
-            .contains("PASS env")
-            .contains("1 env file(s) found: dev")
-            .contains("Selected env found: dev")
+            .contains("Seed: dev")
+            .contains("PASS seed")
+            .contains("1 seed overlay(s) found: dev")
+            .contains("Selected seed found: dev")
             .contains("Fail: 0");
 
         var missingOut = new StringWriter();
@@ -1268,9 +1268,9 @@ class DoppioCommandTest {
 
         assertThat(missingExit).isEqualTo(1);
         assertThat(missingOut.toString())
-            .contains("Env: missing")
-            .contains("FAIL env")
-            .contains("Selected env not found: missing");
+            .contains("Seed: missing")
+            .contains("FAIL seed")
+            .contains("Selected seed not found: missing");
     }
 
     @Test
@@ -1303,9 +1303,9 @@ class DoppioCommandTest {
 
     @Test
     void formatWithoutTargetFormatsAllProjectRequests() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        var login = tempDir.resolve(".doppio/requests/auth/login.dopo");
-        var ping = tempDir.resolve(".doppio/requests/ping.dopo");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        var login = tempDir.resolve(".doppio/recipes/auth/login.dopo");
+        var ping = tempDir.resolve(".doppio/recipes/ping.dopo");
         Files.writeString(login, """
             @name   Login   user
             POST   https://example.com/auth/login
@@ -1351,10 +1351,10 @@ class DoppioCommandTest {
 
     @Test
     void formatCanTargetFolderAndFileWithOptionalExtension() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        var login = tempDir.resolve(".doppio/requests/auth/login.dopo");
-        var refresh = tempDir.resolve(".doppio/requests/auth/refresh.dopo");
-        var other = tempDir.resolve(".doppio/requests/other.dopo");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        var login = tempDir.resolve(".doppio/recipes/auth/login.dopo");
+        var refresh = tempDir.resolve(".doppio/recipes/auth/refresh.dopo");
+        var other = tempDir.resolve(".doppio/recipes/other.dopo");
         Files.writeString(login, "GET    https://example.com/login\n");
         Files.writeString(refresh, "GET    https://example.com/refresh\n");
         Files.writeString(other, "GET    https://example.com/other\n");
@@ -1386,8 +1386,8 @@ class DoppioCommandTest {
 
     @Test
     void formatReportsInvalidJsonAndDoesNotRewriteFile() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        var broken = tempDir.resolve(".doppio/requests/broken.dopo");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        var broken = tempDir.resolve(".doppio/recipes/broken.dopo");
         var original = """
             POST https://example.com
             <json|
@@ -1445,7 +1445,7 @@ class DoppioCommandTest {
         ).execute("gen", path, "--body", body);
 
         assertThat(exit).isZero();
-        assertThat(Files.readString(tempDir.resolve(".doppio/requests/" + path + ".dopo")))
+        assertThat(Files.readString(tempDir.resolve(".doppio/recipes/" + path + ".dopo")))
             .contains(expectedBlock)
             .contains(expectedContent)
             .contains(expectedContentType);
@@ -1464,6 +1464,6 @@ class DoppioCommandTest {
 
         assertThat(exit).isEqualTo(1);
         assertThat(err.toString()).contains(expectedError);
-        assertThat(tempDir.resolve(".doppio/requests/" + path + ".dopo")).doesNotExist();
+        assertThat(tempDir.resolve(".doppio/recipes/" + path + ".dopo")).doesNotExist();
     }
 }

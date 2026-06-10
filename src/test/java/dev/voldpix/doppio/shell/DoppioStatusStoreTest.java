@@ -29,7 +29,7 @@ class DoppioStatusStoreTest {
     @Test
     void filtersInvalidRecentProjects() throws Exception {
         var valid = tempDir.resolve("valid");
-        Files.createDirectories(valid.resolve(".doppio/requests"));
+        Files.createDirectories(valid.resolve(".doppio/recipes"));
         var missing = tempDir.resolve("missing");
         var store = new DoppioStatusStore(tempDir.resolve("config"));
         store.write(new DoppioStatus(List.of(

@@ -18,7 +18,7 @@ public class CheckCommand implements Callable<Integer> {
     @Parameters(index = "0", arity = "0..1", paramLabel = "FILE_OR_FOLDER", description = "Optional request file or folder shorthand.")
     private Path target;
 
-    @Option(names = "--env", paramLabel = "NAME", description = "Use .doppio/envs/NAME.seed over default.seed.")
+    @Option(names = "--env", paramLabel = "NAME", description = "Use .doppio/seeds/NAME.seed over default.seed.")
     private String envName;
 
     private final Path workingDirectory;
@@ -48,7 +48,7 @@ public class CheckCommand implements Callable<Integer> {
             var summary = checkService.check(target, workingDirectory, environment, selectedEnvironment);
             out.println("Doppio Check");
             if (selectedEnvironment.selected()) {
-                out.println("Env: " + selectedEnvironment.name());
+                out.println("Seed: " + selectedEnvironment.name());
             }
             out.println();
             out.println("Valid: " + summary.validCount());

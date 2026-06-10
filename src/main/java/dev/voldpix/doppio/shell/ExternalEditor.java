@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class ExternalEditor {
-    private static final String NO_EDITOR_MESSAGE = "No editor configured. Run `editor use nano`, `editor use \"code -w\"`, or set DOPPIO_EDITOR, VISUAL, or EDITOR.";
+    private static final String NO_EDITOR_MESSAGE = "No editor configured. Run `config editor use nano`, `config editor use \"code -w\"`, or set DOPPIO_EDITOR, VISUAL, or EDITOR.";
     private static final java.util.List<String> FALLBACK_EDITORS = java.util.List.of("nano", "vim", "vi");
 
     private final ShellCommandParser parser;

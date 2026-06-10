@@ -34,8 +34,8 @@ class DoppioPipelineTest {
             BASE_URL=https://example.com
             USERNAME=voldpix
             """);
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Create user
             POST {{BASE_URL}}/users?existing=1
             -h Content-Type=application/json
@@ -73,12 +73,12 @@ class DoppioPipelineTest {
 
     @Test
     void localVariablesOverrideSeedAndEnvironment() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), """
             BASE_URL=https://seed.example.com
             TOKEN=seed-token
             """);
-        Files.writeString(tempDir.resolve(".doppio/requests/local.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/local.dopo"), """
             @var BASE_URL=https://local.example.com
             @var TOKEN=local-token
             POST {{BASE_URL}}/login
@@ -103,17 +103,17 @@ class DoppioPipelineTest {
 
     @Test
     void selectedEnvironmentOverridesDefaultSeedButNotLocalVariables() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/envs"));
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/seeds"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), """
             BASE_URL=https://default.example.com
             TOKEN=default-token
             """);
-        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), """
+        Files.writeString(tempDir.resolve(".doppio/seeds/dev.seed"), """
             BASE_URL=https://dev.example.com
             TOKEN=dev-token
             """);
-        Files.writeString(tempDir.resolve(".doppio/requests/env.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/env.dopo"), """
             @var TOKEN=local-token
             GET {{BASE_URL}}/users/me
             -h Authorization=Bearer {{TOKEN}}
@@ -136,9 +136,9 @@ class DoppioPipelineTest {
 
     @Test
     void selectedEnvironmentMustExistBeforeHttpExecution() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/env.dopo"), "GET {{BASE_URL}}/users/me");
+        Files.writeString(tempDir.resolve(".doppio/recipes/env.dopo"), "GET {{BASE_URL}}/users/me");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
 
         assertThatThrownBy(() -> pipeline(transport).run(
@@ -148,15 +148,15 @@ class DoppioPipelineTest {
             DoppioEnvironment.of("missing")
         ))
             .isInstanceOf(DoppioException.class)
-            .hasMessageContaining("Environment not found: missing");
+            .hasMessageContaining("Seed not found: missing");
         assertThat(transport.callCount).isZero();
     }
 
     @Test
     void legacyLocalSeedIsStillUsedWhenDefaultSeedIsMissing() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://legacy.example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/legacy.dopo"), "GET {{BASE_URL}}/health");
+        Files.writeString(tempDir.resolve(".doppio/recipes/legacy.dopo"), "GET {{BASE_URL}}/health");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
 
         var report = pipeline(transport).run(Path.of("legacy"), tempDir, Map.of());
@@ -167,7 +167,7 @@ class DoppioPipelineTest {
 
     @Test
     void shorthandResolutionCannotEscapeRequestsDirectory() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "");
         Files.writeString(tempDir.resolve("outside.dopo"), "GET https://example.com/project-outside");
         Files.writeString(tempDir.resolve(".doppio/outside.dopo"), "GET https://example.com/outside");
@@ -175,24 +175,24 @@ class DoppioPipelineTest {
 
         assertThatThrownBy(() -> pipeline(transport).run(Path.of("../outside"), tempDir, Map.of()))
             .isInstanceOf(DoppioException.class)
-            .hasMessageContaining("Request path must stay inside .doppio/requests");
+            .hasMessageContaining("Request path must stay inside .doppio/recipes");
         assertThatThrownBy(() -> pipeline(transport).run(Path.of("../outside"), tempDir.resolve(".doppio"), Map.of()))
             .isInstanceOf(DoppioException.class)
-            .hasMessageContaining("Request path must stay inside .doppio/requests");
-        assertThatThrownBy(() -> pipeline(transport).run(Path.of("../outside"), tempDir.resolve(".doppio/requests"), Map.of()))
+            .hasMessageContaining("Request path must stay inside .doppio/recipes");
+        assertThatThrownBy(() -> pipeline(transport).run(Path.of("../outside"), tempDir.resolve(".doppio/recipes"), Map.of()))
             .isInstanceOf(DoppioException.class)
-            .hasMessageContaining("Request path must stay inside .doppio/requests");
+            .hasMessageContaining("Request path must stay inside .doppio/recipes");
         assertThat(transport.callCount).isZero();
     }
 
     @Test
     void previewBuildsPreparedRequestWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), """
             BASE_URL=https://seed.example.com
             TOKEN=seed-token
             """);
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), """
             @name Login user
             @var TOKEN=local-token
             POST {{BASE_URL}}/login
@@ -210,7 +210,7 @@ class DoppioPipelineTest {
         ));
 
         assertThat(transport.callCount).isZero();
-        assertThat(report.requestFile()).isEqualTo(tempDir.resolve(".doppio/requests/auth/login.dopo"));
+        assertThat(report.requestFile()).isEqualTo(tempDir.resolve(".doppio/recipes/auth/login.dopo"));
         assertThat(report.request().name()).isEqualTo("Login user");
         assertThat(report.request().uri().toString()).isEqualTo("https://seed.example.com/login");
         assertThat(report.request().headers())
@@ -222,9 +222,9 @@ class DoppioPipelineTest {
 
     @Test
     void previewHydratesExpectationsWithoutExecutingHttp() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "EXPECTED=ok");
-        Files.writeString(tempDir.resolve(".doppio/requests/expect.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/expect.dopo"), """
             @expect status=200
             @expect header Content-Type contains json
             @expect body contains {{EXPECTED}}
@@ -243,8 +243,8 @@ class DoppioPipelineTest {
 
     @Test
     void localVariableValuesAreLiteralAndNotRecursivelyHydrated() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/literal.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/literal.dopo"), """
             @var TOKEN="{{HOST}}"
             GET https://example.com
             -h Authorization=Bearer {{TOKEN}}
@@ -259,8 +259,8 @@ class DoppioPipelineTest {
 
     @Test
     void defaultContentTypeDoesNotOverrideUserContentType() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/text.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/text.dopo"), """
             POST https://example.com
             -h Content-Type=application/custom
             <text|
@@ -277,8 +277,8 @@ class DoppioPipelineTest {
 
     @Test
     void non2xxResponseIsReturnedAsFailedReport() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/fail.dopo"), "GET https://example.com");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/fail.dopo"), "GET https://example.com");
         var transport = new FakeTransport(new DoppioResponse(500, Map.of(), "boom", Duration.ofMillis(3)));
 
         var report = pipeline(transport).run(Path.of("fail.dopo"), tempDir, Map.of());
@@ -289,8 +289,8 @@ class DoppioPipelineTest {
 
     @Test
     void runEvaluatesBasicExpectations() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/success.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/success.dopo"), """
             @expect status=201
             @expect header Content-Type contains json
             @expect body contains created
@@ -312,8 +312,8 @@ class DoppioPipelineTest {
 
     @Test
     void runFailsWhenExpectationFailsEvenIfHttpStatusIs2xx() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/fail-expect.dopo"), """
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/fail-expect.dopo"), """
             @expect status=200
             @expect body contains missing
             GET https://example.com
@@ -336,8 +336,8 @@ class DoppioPipelineTest {
 
     @Test
     void doesNotExecuteHttpWhenTemplateOrJsonFails() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests"));
-        Files.writeString(tempDir.resolve(".doppio/requests/missing-template.dopo"), "GET https://example.com/{{MISSING}}");
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/recipes/missing-template.dopo"), "GET https://example.com/{{MISSING}}");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "", Duration.ZERO));
 
         assertThatThrownBy(() -> pipeline(transport).run(Path.of("missing-template.dopo"), tempDir, Map.of()))
@@ -345,7 +345,7 @@ class DoppioPipelineTest {
             .hasMessageContaining("MISSING");
         assertThat(transport.callCount).isZero();
 
-        Files.writeString(tempDir.resolve(".doppio/requests/invalid-json.dopo"), """
+        Files.writeString(tempDir.resolve(".doppio/recipes/invalid-json.dopo"), """
             POST https://example.com
             <|
             {"name":}
@@ -360,9 +360,9 @@ class DoppioPipelineTest {
 
     @Test
     void runFromInsideDoppioDirectoryUsesRequestsFolderShorthand() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), "GET {{BASE_URL}}/login");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
 
         var report = pipeline(transport).run(Path.of("auth/login.dopo"), tempDir.resolve(".doppio"), Map.of());
@@ -373,9 +373,9 @@ class DoppioPipelineTest {
 
     @Test
     void runInsideDoppioProjectAllowsOptionalDopoExtension() throws Exception {
-        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes/auth"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://example.com");
-        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), "GET {{BASE_URL}}/login");
+        Files.writeString(tempDir.resolve(".doppio/recipes/auth/login.dopo"), "GET {{BASE_URL}}/login");
         var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
 
         var report = pipeline(transport).run(Path.of("auth/login"), tempDir, Map.of());

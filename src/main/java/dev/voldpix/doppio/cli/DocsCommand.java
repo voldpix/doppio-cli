@@ -12,14 +12,14 @@ public class DocsCommand implements Callable<Integer> {
 
         What Doppio Is
           Doppio is a repo-native HTTP client for humans, CI, and coding agents.
-          Request files live in .doppio/requests and use the .dopo extension.
+          Request files live in .doppio/recipes and use the .dopo extension.
 
         Project Layout
           .doppio/
             default.seed
-            envs/
+            seeds/
               dev.seed
-            requests/
+            recipes/
               example.dopo
               auth/login.dopo
 
@@ -35,15 +35,15 @@ public class DocsCommand implements Callable<Integer> {
 
         Variables
           Use {{KEY}} placeholders in URLs, headers, query params, and bodies.
-          Precedence: request @var > selected env seed > default.seed > OS environment.
+          Precedence: request @var > selected seed overlay > default.seed > OS environment.
 
           Example:
             @var EMAIL=me@example.com
             GET {{BASE_URL}}/users/me
             -h Authorization=Bearer {{TOKEN}}
 
-        Environments
-          doppio gen --env dev creates .doppio/envs/dev.seed.
+        Seed Overlays
+          doppio gen --env dev creates .doppio/seeds/dev.seed.
           Use --env with run, preview, check, and doctor:
             doppio preview auth/login --env dev
             doppio run auth/login --env dev
@@ -109,7 +109,7 @@ public class DocsCommand implements Callable<Integer> {
             doppio:[dev]>
 
           The shell uses JLine for arrows, history, and local tab completion.
-          The prompt, env state, edit paths, and run result are colorized unless NO_COLOR is set.
+          The prompt, seed state, edit paths, and run result are colorized unless NO_COLOR is set.
           History is stored in ~/.config/doppio/history.
           Recent projects are stored in ~/.config/doppio/status.json.
           User shell config is stored in ~/.config/doppio/config.json.
@@ -136,19 +136,18 @@ public class DocsCommand implements Callable<Integer> {
             check [request-or-folder] [--env NAME]
             rm [request]
 
-          Shell seed and env commands:
+          Shell seed commands:
             seed list
+            seed use dev
+            seed clear
             seed edit default
             seed gen dev
             seed edit dev
             seed rm dev
-            env list
-            env use dev
-            env clear
-            editor show
-            editor use nano
-            editor use "code -w"
-            editor clear
+            config editor show
+            config editor use nano
+            config editor use "code -w"
+            config editor clear
 
           Editor precedence:
             DOPPIO_EDITOR > ~/.config/doppio/config.json > VISUAL > EDITOR > nano/vim/vi from PATH.
@@ -189,9 +188,9 @@ public class DocsCommand implements Callable<Integer> {
           run executes the request and includes response status, headers, body, and duration.
 
         Formatting
-          doppio format formats all .dopo files under .doppio/requests.
+          doppio format formats all .dopo files under .doppio/recipes.
           doppio format auth/login formats one request; .dopo is optional in a project.
-          doppio format auth formats every .dopo file under that request folder.
+          doppio format auth formats every .dopo file under that recipe folder.
           JSON bodies are pretty-printed and full-line # comments keep their position.
           Inline JSON comments are not supported; comment out whole lines instead.
 

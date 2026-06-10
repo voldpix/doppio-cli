@@ -83,29 +83,29 @@ class DoppioShellTest {
         assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://example.com/login");
         assertThat(out.toString())
             .contains("Doppio project:")
-            .contains("Env: default")
+            .contains("Seed: default")
             .contains("Result: SUCCESS 200");
     }
 
     @Test
     void envUseDefaultClearsSelectedEnvironment() throws Exception {
         var project = project("api");
-        Files.createDirectories(project.resolve(".doppio/envs"));
+        Files.createDirectories(project.resolve(".doppio/seeds"));
         Files.writeString(project.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
-        Files.writeString(project.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(project.resolve(".doppio/seeds/dev.seed"), "BASE_URL=https://dev.example.com");
         request(project, "ping.dopo", "GET {{BASE_URL}}/ping");
         var out = new StringWriter();
         var transport = new FakeTransport();
         var shell = shell(project, out, new StringWriter(), transport, new CapturingEditor());
 
-        var exit = shell.run(reader("env use dev\nenv use default\nrun ping\nexit\n"), null, null);
+        var exit = shell.run(reader("seed use dev\nseed use default\nrun ping\nexit\n"), null, null);
 
         assertThat(exit).isZero();
         assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://default.example.com/ping");
         assertThat(out.toString())
-            .contains("Using env: dev")
-            .contains("Using env: default")
-            .contains("Env: default");
+            .contains("Using seed: dev")
+            .contains("Using seed: default")
+            .contains("Seed: default");
     }
 
     @Test
@@ -140,8 +140,8 @@ class DoppioShellTest {
     @Test
     void seedEditResolvesDefaultAndEnvSeedFiles() throws Exception {
         var project = project("api");
-        Files.createDirectories(project.resolve(".doppio/envs"));
-        Files.writeString(project.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.createDirectories(project.resolve(".doppio/seeds"));
+        Files.writeString(project.resolve(".doppio/seeds/dev.seed"), "BASE_URL=https://dev.example.com");
         var editor = new CapturingEditor();
         var shell = shell(project, new StringWriter(), new StringWriter(), new FakeTransport(), editor);
 
@@ -151,7 +151,7 @@ class DoppioShellTest {
         assertThat(editor.opened)
             .containsExactly(
                 project.resolve(".doppio/default.seed").toAbsolutePath().normalize(),
-                project.resolve(".doppio/envs/dev.seed").toAbsolutePath().normalize()
+                project.resolve(".doppio/seeds/dev.seed").toAbsolutePath().normalize()
             );
     }
 
@@ -161,7 +161,7 @@ class DoppioShellTest {
         var out = new StringWriter();
         var shell = shell(project, out, new StringWriter(), new FakeTransport(), new CapturingEditor());
 
-        var exit = shell.run(reader("editor use \"code -w\"\neditor show\neditor clear\neditor show\nexit\n"), null, null);
+        var exit = shell.run(reader("config editor use \"code -w\"\nconfig editor show\nconfig editor clear\nconfig editor show\nexit\n"), null, null);
 
         assertThat(exit).isZero();
         assertThat(out.toString())
@@ -179,10 +179,10 @@ class DoppioShellTest {
         var editor = new CapturingEditor();
         var shell = shell(project, new StringWriter(), new StringWriter(), new FakeTransport(), editor);
 
-        var exit = shell.run(reader("editor use nano\nedit test\nexit\n"), null, null);
+        var exit = shell.run(reader("config editor use nano\nedit test\nexit\n"), null, null);
 
         assertThat(exit).isZero();
-        assertThat(editor.opened).containsExactly(project.resolve(".doppio/requests/test.dopo").toAbsolutePath().normalize());
+        assertThat(editor.opened).containsExactly(project.resolve(".doppio/recipes/test.dopo").toAbsolutePath().normalize());
         assertThat(editor.editorCommands).containsExactly("nano");
     }
 
@@ -195,13 +195,13 @@ class DoppioShellTest {
 
     private Path project(String name) throws Exception {
         var project = tempDir.resolve(name);
-        Files.createDirectories(project.resolve(".doppio/requests"));
+        Files.createDirectories(project.resolve(".doppio/recipes"));
         Files.writeString(project.resolve(".doppio/default.seed"), "");
         return project;
     }
 
     private void request(Path project, String relativePath, String content) throws Exception {
-        var path = project.resolve(".doppio/requests").resolve(relativePath);
+        var path = project.resolve(".doppio/recipes").resolve(relativePath);
         Files.createDirectories(path.getParent());
         Files.writeString(path, content);
     }

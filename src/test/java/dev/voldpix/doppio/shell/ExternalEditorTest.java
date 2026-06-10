@@ -45,7 +45,7 @@ class ExternalEditorTest {
     void reportsHelpfulErrorWhenNoEditorCanBeResolved() {
         assertThatThrownBy(() -> editor.open(tempDir.resolve("request.dopo"), Map.of("PATH", ""), DoppioUserConfig.empty()))
             .isInstanceOf(DoppioException.class)
-            .hasMessageContaining("editor use nano")
+            .hasMessageContaining("config editor use nano")
             .hasMessageContaining("DOPPIO_EDITOR");
     }
 }

@@ -28,7 +28,7 @@ public class ReportCleaner {
             throw new DoppioException(ErrorKind.FILE, "No .doppio project found");
         }
 
-        var requestsDir = doppioDir.resolve("requests");
+        var requestsDir = doppioDir.resolve("recipes");
         if (!Files.isDirectory(requestsDir)) {
             return 0;
         }

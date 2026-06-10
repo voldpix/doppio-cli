@@ -27,6 +27,6 @@ public class DoppioProjectResolver {
             && Files.isDirectory(path)
             && (Files.exists(path.resolve("default.seed"))
                 || Files.exists(path.resolve("local.seed"))
-                || Files.isDirectory(path.resolve("requests")));
+                || Files.isDirectory(path.resolve("recipes")));
     }
 }

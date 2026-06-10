@@ -27,15 +27,14 @@ public class ShellCompleter implements Completer {
         "check",
         "rm",
         "seed",
-        "env",
-        "editor",
+        "config",
         "projects",
         "project",
         "clean",
         "doctor"
     );
-    private static final List<String> SEED_COMMANDS = List.of("list", "edit", "gen", "rm");
-    private static final List<String> ENV_COMMANDS = List.of("list", "use", "clear", "edit", "gen");
+    private static final List<String> SEED_COMMANDS = List.of("list", "use", "clear", "edit", "gen", "rm");
+    private static final List<String> CONFIG_COMMANDS = List.of("editor");
     private static final List<String> EDITOR_COMMANDS = List.of("show", "use", "clear");
 
     private final DoppioShell shell;
@@ -67,10 +66,8 @@ public class ShellCompleter implements Completer {
             completeRequests(candidates);
         } else if ("seed".equals(command)) {
             completeSeed(words, line.wordIndex(), candidates);
-        } else if ("env".equals(command)) {
-            completeEnv(words, line.wordIndex(), candidates);
-        } else if ("editor".equals(command)) {
-            completeEditor(words, line.wordIndex(), candidates);
+        } else if ("config".equals(command)) {
+            completeConfig(words, line.wordIndex(), candidates);
         }
     }
 
@@ -90,34 +87,34 @@ public class ShellCompleter implements Completer {
     private void completeSeed(List<String> words, int wordIndex, List<Candidate> candidates) {
         if (wordIndex == 1) {
             SEED_COMMANDS.forEach(command -> candidates.add(new Candidate(command)));
-        } else if (wordIndex == 2 && words.size() > 1 && List.of("edit", "rm").contains(words.get(1))) {
+        } else if (wordIndex == 2 && words.size() > 1 && List.of("use", "edit", "rm").contains(words.get(1))) {
             candidates.add(new Candidate("default"));
-            completeEnvNames(candidates);
+            completeSeedNames(candidates);
         }
     }
 
-    private void completeEnv(List<String> words, int wordIndex, List<Candidate> candidates) {
+    private void completeConfig(List<String> words, int wordIndex, List<Candidate> candidates) {
         if (wordIndex == 1) {
-            ENV_COMMANDS.forEach(command -> candidates.add(new Candidate(command)));
-        } else if (wordIndex == 2 && words.size() > 1 && List.of("use", "edit").contains(words.get(1))) {
-            completeEnvNames(candidates);
-        }
-    }
-
-    private void completeEditor(List<String> words, int wordIndex, List<Candidate> candidates) {
-        if (wordIndex == 1) {
-            EDITOR_COMMANDS.forEach(command -> candidates.add(new Candidate(command)));
-        } else if (wordIndex == 2 && words.size() > 1 && "use".equals(words.get(1))) {
+            CONFIG_COMMANDS.forEach(command -> candidates.add(new Candidate(command)));
+        } else if (wordIndex == 2 && words.size() > 1 && "editor".equals(words.get(1))) {
+            completeEditor(words, wordIndex, candidates);
+        } else if (wordIndex == 3 && words.size() > 2 && "editor".equals(words.get(1)) && "use".equals(words.get(2))) {
             List.of("nano", "vim", "vi", "code -w").forEach(command -> candidates.add(new Candidate(command)));
         }
     }
 
-    private void completeEnvNames(List<Candidate> candidates) {
-        var envsDir = shell.session().doppioDirectory().resolve("envs");
-        if (!java.nio.file.Files.isDirectory(envsDir)) {
+    private void completeEditor(List<String> words, int wordIndex, List<Candidate> candidates) {
+        if (wordIndex == 2) {
+            EDITOR_COMMANDS.forEach(command -> candidates.add(new Candidate(command)));
+        }
+    }
+
+    private void completeSeedNames(List<Candidate> candidates) {
+        var seedsDir = shell.session().doppioDirectory().resolve("seeds");
+        if (!java.nio.file.Files.isDirectory(seedsDir)) {
             return;
         }
-        try (var files = java.nio.file.Files.walk(envsDir, 1)) {
+        try (var files = java.nio.file.Files.walk(seedsDir, 1)) {
             files.filter(java.nio.file.Files::isRegularFile)
                 .map(path -> path.getFileName().toString())
                 .filter(name -> name.endsWith(".seed"))
