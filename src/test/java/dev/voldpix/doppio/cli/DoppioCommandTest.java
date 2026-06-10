@@ -165,6 +165,128 @@ class DoppioCommandTest {
     }
 
     @Test
+    void genMethodGetCreatesNoBodyByDefault() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("gen", "users/me", "--method", "GET");
+
+        assertThat(exit).isZero();
+        var content = Files.readString(tempDir.resolve(".doppio/requests/users/me.dopo"));
+        assertThat(content)
+            .contains("@name Me")
+            .contains("GET {{BASE_URL}}/path")
+            .doesNotContain("Content-Type")
+            .doesNotContain("<json|")
+            .doesNotContain("<text|")
+            .doesNotContain("<csv|")
+            .doesNotContain("<form|");
+    }
+
+    @Test
+    void genMethodPostCanExplicitlyCreateNoBody() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("gen", "jobs/start", "--method", "POST", "--body", "none");
+
+        assertThat(exit).isZero();
+        var content = Files.readString(tempDir.resolve(".doppio/requests/jobs/start.dopo"));
+        assertThat(content)
+            .contains("POST {{BASE_URL}}/path")
+            .doesNotContain("Content-Type")
+            .doesNotContain("<json|")
+            .doesNotContain("<text|")
+            .doesNotContain("<csv|")
+            .doesNotContain("<form|");
+    }
+
+    @Test
+    void genCreatesTypedBodyPlaceholdersAndDefaultContentTypes() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+
+        assertGeneratedBody("json-request", "json", "<json|", "\"key\": \"value\"", "Content-Type=application/json");
+        assertGeneratedBody("text-request", "text", "<text|", "hello", "Content-Type=text/plain; charset=utf-8");
+        assertGeneratedBody("csv-request", "csv", "<csv|", "name,value", "Content-Type=text/csv; charset=utf-8");
+        assertGeneratedBody("form-request", "form", "<form|", "key=value", "Content-Type=application/x-www-form-urlencoded");
+    }
+
+    @Test
+    void genAddsBearerHeadersAndQueries() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute(
+            "gen",
+            "users/search",
+            "--method",
+            "GET",
+            "--bearer",
+            "-H",
+            "X-Client=doppio",
+            "--header",
+            "Accept=application/json",
+            "-q",
+            "page=1",
+            "--query",
+            "flag"
+        );
+
+        assertThat(exit).isZero();
+        assertThat(Files.readString(tempDir.resolve(".doppio/requests/users/search.dopo")))
+            .contains("GET {{BASE_URL}}/path")
+            .contains("-h Authorization=Bearer {{TOKEN}}")
+            .contains("-h X-Client=doppio")
+            .contains("-h Accept=application/json")
+            .contains("-q page=1")
+            .contains("-q flag")
+            .doesNotContain("Content-Type");
+    }
+
+    @Test
+    void genDoesNotInjectDefaultContentTypeWhenUserProvidesOne() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("gen", "custom/content", "--body", "json", "-H", "Content-Type=application/custom");
+
+        assertThat(exit).isZero();
+        assertThat(Files.readString(tempDir.resolve(".doppio/requests/custom/content.dopo")))
+            .contains("-h Content-Type=application/custom")
+            .doesNotContain("-h Content-Type=application/json");
+    }
+
+    @Test
+    void genRejectsInvalidHelperOptionsWithoutCreatingFiles() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+
+        assertInvalidGen("bad-method", "Unsupported method", "gen", "bad-method", "--method", "FETCH");
+        assertInvalidGen("bad-body", "Unsupported body kind", "gen", "bad-body", "--body", "xml");
+        assertInvalidGen("bad-header", "Header must use key=value", "gen", "bad-header", "-H", "Authorization");
+        assertInvalidGen("bad-query", "Query param key is missing", "gen", "bad-query", "-q", "=broken");
+    }
+
+    @Test
     void genRejectsOverwritesAndInternalRequestsPrefix() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests"));
         Files.writeString(tempDir.resolve(".doppio/requests/existing.dopo"), "GET https://example.com");
@@ -376,6 +498,30 @@ class DoppioCommandTest {
             .doesNotContain(".doppio/requests");
     }
 
+    @Test
+    void lsAliasPrintsRequestTreeLikeList() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            GET https://example.com/login
+            """);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("ls");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Requests")
+            .contains("auth/")
+            .contains("Login user (auth/login.dopo)");
+    }
+
     private static class FakeTransport implements HttpTransport {
         private int callCount;
 
@@ -389,5 +535,43 @@ class DoppioCommandTest {
                 Duration.ofMillis(4)
             );
         }
+    }
+
+    private void assertGeneratedBody(
+        String path,
+        String body,
+        String expectedBlock,
+        String expectedContent,
+        String expectedContentType
+    ) throws Exception {
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("gen", path, "--body", body);
+
+        assertThat(exit).isZero();
+        assertThat(Files.readString(tempDir.resolve(".doppio/requests/" + path + ".dopo")))
+            .contains(expectedBlock)
+            .contains(expectedContent)
+            .contains(expectedContentType);
+    }
+
+    private void assertInvalidGen(String path, String expectedError, String... args) throws Exception {
+        var err = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute(args);
+
+        assertThat(exit).isEqualTo(1);
+        assertThat(err.toString()).contains(expectedError);
+        assertThat(tempDir.resolve(".doppio/requests/" + path + ".dopo")).doesNotExist();
     }
 }

@@ -57,7 +57,10 @@ Only `#` starts a comment. `@name` and `@var` are metadata, not scripting hooks,
 ```bash
 doppio init
 doppio gen auth/login
+doppio gen users/me --method GET --bearer
+doppio gen auth/login --body form -H X-Client=doppio -q source=doppio
 doppio list
+doppio ls
 doppio show auth/login
 doppio run test
 doppio run auth/login --save
@@ -66,6 +69,8 @@ doppio rm auth/login
 ```
 
 `doppio gen` creates editable request placeholders under `.doppio/requests`, and `doppio show` inspects metadata, method, URL, headers, query params, local variables, and body type without executing HTTP.
+
+`doppio gen` defaults to `POST` with a JSON body. `GET` and `DELETE` default to no body, while `POST`, `PUT`, and `PATCH` default to JSON unless `--body none|json|text|csv|form` is provided. `--bearer` adds `Authorization=Bearer {{TOKEN}}`, and `-H/--header` plus `-q/--query` add request directives to the generated file.
 
 `--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes those generated report files under `.doppio/requests`. `doppio rm` moves request files to `.doppio/trash` instead of deleting them outright.
 
