@@ -142,6 +142,33 @@ class DslProcessorTest {
     }
 
     @Test
+    void rejectMetadataDirectiveTypos() {
+        assertThatThrownBy(() -> processor.parseMetadata("""
+            @nameX Login
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("unknown metadata directive"));
+
+        assertThatThrownBy(() -> processor.parseMetadata("""
+            @varTOKEN=secret
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("unknown metadata directive"));
+
+        assertThatThrownBy(() -> processor.parseMetadata("""
+            @expectation status=200
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("unknown metadata directive"));
+    }
+
+    @Test
     void parseAllHttpMethods() throws Exception {
         assertThat(processor.process("GET https://example.com").method()).isEqualTo(HttpMethod.GET);
         assertThat(processor.process("POST https://example.com").method()).isEqualTo(HttpMethod.POST);
@@ -217,7 +244,7 @@ class DslProcessorTest {
     }
 
     @Test
-    void preserveWhitespaceAndIgnoreHashCommentsInsideBody() throws Exception {
+    void preserveWhitespaceAndIgnoreHashCommentsInsideJsonBody() throws Exception {
         var input = """
             POST https://example.com
             <json|
@@ -233,6 +260,29 @@ class DslProcessorTest {
         assertThat(result.body().content())
             .doesNotContain("# body comment")
             .contains("\"name\": \"   lots   of   spaces   \"");
+    }
+
+    @Test
+    void preserveHashLinesInsideTextAndCsvBodies() throws Exception {
+        var text = processor.process("""
+            POST https://example.com
+            <text|
+            # literal text
+            hello
+            |>
+            """);
+
+        assertThat(text.body().content()).startsWith("# literal text");
+
+        var csv = processor.process("""
+            POST https://example.com
+            <csv|
+            #,value
+            one,two
+            |>
+            """);
+
+        assertThat(csv.body().content()).startsWith("#,value");
     }
 
     @Test
@@ -288,6 +338,17 @@ class DslProcessorTest {
         assertThatThrownBy(() -> processor.process(input))
             .isInstanceOf(DslParseException.class)
             .satisfies(error -> assertThat(((DslParseException) error).errors()).hasSize(3));
+    }
+
+    @Test
+    void rejectInvalidHeaderNamesBeforeTransport() {
+        assertThatThrownBy(() -> processor.process("""
+            GET https://example.com
+            -h Bad Header=value
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("invalid HTTP header name"));
     }
 
     @Test

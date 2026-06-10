@@ -75,7 +75,9 @@ public class DocsCommand implements Callable<Integer> {
           <form| ... |>   application/x-www-form-urlencoded, key=value lines
 
         Comments
-          # starts a comment outside body blocks and inside body blocks.
+          # starts a comment outside body blocks.
+          Full-line # comments are ignored in JSON and form bodies.
+          Text and CSV bodies preserve literal # lines.
 
         Common Commands
           doppio init

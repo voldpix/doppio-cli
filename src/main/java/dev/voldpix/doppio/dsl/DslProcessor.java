@@ -6,6 +6,7 @@ import dev.voldpix.doppio.model.BodyBlock;
 import dev.voldpix.doppio.model.BodyKind;
 import dev.voldpix.doppio.model.DoppioRequest;
 import dev.voldpix.doppio.model.Header;
+import dev.voldpix.doppio.model.HeaderNames;
 import dev.voldpix.doppio.model.HttpMethod;
 import dev.voldpix.doppio.model.QueryParam;
 
@@ -21,6 +22,10 @@ import java.util.regex.Pattern;
 public class DslProcessor {
     private static final String BODY_CLOSE = "|>";
     private static final Pattern BODY_OPEN = Pattern.compile("^<(?:(json|text|csv|form))?\\|$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HEADER_EXPECTATION =
+        Pattern.compile("^header\\s+(\\S+)\\s+contains\\s+(.+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern BODY_EXPECTATION =
+        Pattern.compile("^body\\s+contains\\s+(.+)$", Pattern.CASE_INSENSITIVE);
 
     public DslMetadata parseMetadata(String content) throws DslParseException {
         return extractBlocks(content, false).metadata();
@@ -98,7 +103,7 @@ public class DslProcessor {
                 if (BODY_CLOSE.equals(trimmed)) {
                     closeCount++;
                     inBody = false;
-                } else if (!trimmed.startsWith("#")) {
+                } else if (shouldKeepBodyLine(bodyKind, trimmed)) {
                     bodyLines.add(rawLine);
                 }
                 continue;
@@ -194,6 +199,10 @@ public class DslProcessor {
         return trimmed.isEmpty() || trimmed.startsWith("#");
     }
 
+    private boolean shouldKeepBodyLine(BodyKind bodyKind, String trimmed) {
+        return !trimmed.startsWith("#") || bodyKind == BodyKind.TEXT || bodyKind == BodyKind.CSV;
+    }
+
     private String normalizeDirectiveLine(String line) {
         return line.trim().replaceAll("\\s+", " ");
     }
@@ -213,22 +222,26 @@ public class DslProcessor {
     }
 
     private void parseMetadataLine(String line, MetadataBuilder metadata, List<ParseError> errors) {
-        if (line.startsWith("@name")) {
+        if (isMetadataDirective(line, "@name")) {
             var name = line.replaceFirst("^@name(\\s+|$)", "").trim();
             if (name.isBlank()) {
                 errors.add(new ParseError(line, "expected: @name <request name>"));
                 return;
             }
             metadata.setName(name, line, errors);
-        } else if (line.startsWith("@var")) {
+        } else if (isMetadataDirective(line, "@var")) {
             var variable = line.replaceFirst("^@var(\\s+|$)", "").trim();
             parseLocalVariable(line, variable, metadata, errors);
-        } else if (line.startsWith("@expect")) {
+        } else if (isMetadataDirective(line, "@expect")) {
             var expectation = line.replaceFirst("^@expect(\\s+|$)", "").trim();
             parseExpectation(line, expectation, metadata, errors);
         } else {
             errors.add(new ParseError(line, "unknown metadata directive"));
         }
+    }
+
+    private boolean isMetadataDirective(String line, String directive) {
+        return line.equals(directive) || line.startsWith(directive + " ");
     }
 
     private void parseExpectation(String line, String expectation, MetadataBuilder metadata, List<ParseError> errors) {
@@ -242,8 +255,7 @@ public class DslProcessor {
             return;
         }
 
-        var headerMatcher = Pattern.compile("^header\\s+(\\S+)\\s+contains\\s+(.+)$", Pattern.CASE_INSENSITIVE)
-            .matcher(expectation);
+        var headerMatcher = HEADER_EXPECTATION.matcher(expectation);
         if (headerMatcher.matches()) {
             metadata.addExpectation(new Expectation(
                 ExpectationKind.HEADER_CONTAINS,
@@ -254,8 +266,7 @@ public class DslProcessor {
             return;
         }
 
-        var bodyMatcher = Pattern.compile("^body\\s+contains\\s+(.+)$", Pattern.CASE_INSENSITIVE)
-            .matcher(expectation);
+        var bodyMatcher = BODY_EXPECTATION.matcher(expectation);
         if (bodyMatcher.matches()) {
             metadata.addExpectation(new Expectation(
                 ExpectationKind.BODY_CONTAINS,
@@ -361,7 +372,17 @@ public class DslProcessor {
             return;
         }
 
-        headers.add(new Header(stripped.substring(0, eqIdx).trim(), stripped.substring(eqIdx + 1).trim()));
+        var key = stripped.substring(0, eqIdx).trim();
+        if (key.isBlank()) {
+            errors.add(new ParseError(line, "header key is missing"));
+            return;
+        }
+        if (!HeaderNames.isValid(key)) {
+            errors.add(new ParseError(line, "invalid HTTP header name: " + key));
+            return;
+        }
+
+        headers.add(new Header(key, stripped.substring(eqIdx + 1).trim()));
     }
 
     private void parseQueryParam(String line, List<QueryParam> queryParams, List<ParseError> errors) {

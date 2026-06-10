@@ -18,6 +18,9 @@ public record DoppioEnvironment(String name) {
         }
 
         var trimmed = name.trim();
+        if (isDefaultName(trimmed)) {
+            return none();
+        }
         if (!VALID_NAME.matcher(trimmed).matches()) {
             throw new DoppioException(
                 ErrorKind.SEED,
@@ -25,6 +28,10 @@ public record DoppioEnvironment(String name) {
             );
         }
         return new DoppioEnvironment(trimmed);
+    }
+
+    public static boolean isDefaultName(String name) {
+        return name != null && "default".equalsIgnoreCase(name.trim());
     }
 
     public boolean selected() {

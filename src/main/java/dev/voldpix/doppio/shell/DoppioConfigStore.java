@@ -1,5 +1,8 @@
 package dev.voldpix.doppio.shell;
 
+import dev.voldpix.doppio.model.DoppioException;
+import dev.voldpix.doppio.model.ErrorKind;
+
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -16,10 +19,6 @@ public class DoppioConfigStore {
     public DoppioConfigStore(Path configDirectory) {
         this.configDirectory = configDirectory.toAbsolutePath().normalize();
         this.configFile = this.configDirectory.resolve("config.json");
-    }
-
-    public static DoppioConfigStore userDefault() {
-        return new DoppioConfigStore(Path.of(System.getProperty("user.home"), ".config", "doppio"));
     }
 
     public Path configDirectory() {
@@ -43,7 +42,7 @@ public class DoppioConfigStore {
         }
     }
 
-    public void write(DoppioUserConfig config) {
+    public void write(DoppioUserConfig config) throws DoppioException {
         try {
             Files.createDirectories(configDirectory);
             var tmp = configDirectory.resolve("config.json.tmp");
@@ -54,7 +53,7 @@ public class DoppioConfigStore {
                 Files.move(tmp, configFile, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
-            // Editor config should never block an active shell session.
+            throw new DoppioException(ErrorKind.FILE, "Unable to write Doppio config: " + configFile, e);
         }
     }
 

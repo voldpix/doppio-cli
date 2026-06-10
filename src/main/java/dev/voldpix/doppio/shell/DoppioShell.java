@@ -185,7 +185,7 @@ public class DoppioShell {
                     return false;
                 }
                 case "help" -> printHelp();
-                case "ls", "list" -> executeCli(List.of("list"));
+                case "ls", "list" -> executeCli(join("list", args));
                 case "run" -> runRequest(args, reader);
                 case "preview" -> previewRequest(args, reader);
                 case "show" -> showRequest(args, reader);
@@ -194,14 +194,23 @@ public class DoppioShell {
                 case "format" -> executeCli(join("format", args));
                 case "check" -> executeCli(withSessionEnv("check", args));
                 case "doctor" -> executeCli(withSessionEnv("doctor", args));
-                case "clean" -> executeCli(List.of("clean"));
+                case "clean" -> executeCli(join("clean", args));
                 case "rm" -> removeRequest(args, reader);
-                case "body" -> printLastBody();
-                case "save" -> saveLastReport();
+                case "body" -> {
+                    ensureNoArgs(args, "Usage: body");
+                    printLastBody();
+                }
+                case "save" -> {
+                    ensureNoArgs(args, "Usage: save");
+                    saveLastReport();
+                }
                 case "seed" -> handleSeed(args);
                 case "env" -> handleEnv(args);
                 case "editor" -> handleEditor(args);
-                case "projects" -> printProjects();
+                case "projects" -> {
+                    ensureNoArgs(args, "Usage: projects");
+                    printProjects();
+                }
                 case "project" -> switchProject(args);
                 default -> out.println("Unknown shell command: " + command + ". Type `help`.");
             }
@@ -327,6 +336,11 @@ public class DoppioShell {
             case "list" -> listSeeds();
             case "use" -> {
                 var name = requiredArg(args, "env use requires an env name");
+                if (DoppioEnvironment.isDefaultName(name)) {
+                    session.environmentName(null);
+                    out.println(styler.success("Using env: ") + styler.env("default"));
+                    return;
+                }
                 var path = seedPath(name);
                 if (!Files.isRegularFile(path)) {
                     throw new DoppioException(ErrorKind.SEED, "Seed not found: " + name + ". Use `env gen " + name + "` first.");
@@ -421,7 +435,7 @@ public class DoppioShell {
     }
 
     private Path seedPath(String name) throws DoppioException {
-        if ("default".equals(name)) {
+        if (DoppioEnvironment.isDefaultName(name)) {
             return session.doppioDirectory().resolve("default.seed");
         }
         var env = DoppioEnvironment.of(name);
@@ -433,7 +447,7 @@ public class DoppioShell {
     }
 
     private void removeSeed(String name) throws DoppioException {
-        if ("default".equals(name)) {
+        if (DoppioEnvironment.isDefaultName(name)) {
             throw new DoppioException(ErrorKind.SEED, "default.seed cannot be removed");
         }
         var path = seedPath(name);
@@ -610,6 +624,12 @@ public class DoppioShell {
             throw new DoppioException(ErrorKind.FILE, message);
         }
         return joined;
+    }
+
+    private void ensureNoArgs(List<String> args, String usage) throws DoppioException {
+        if (!args.isEmpty()) {
+            throw new DoppioException(ErrorKind.PARSE, usage);
+        }
     }
 
     private String effectiveEnv(String oneOffEnv) {

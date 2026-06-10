@@ -66,7 +66,7 @@ public class DoppioCommand implements Callable<Integer> {
             );
 
         var commandLine = new CommandLine(new DoppioCommand());
-        commandLine.addSubcommand("init", new InitCommand(workingDirectory, out));
+        commandLine.addSubcommand("init", new InitCommand(workingDirectory, out, err));
         commandLine.addSubcommand("gen", new GenCommand(workingDirectory, new RequestFileCreator(), out, err));
         commandLine.addSubcommand("run", new RunCommand(workingDirectory, environment, pipeline, formatter, jsonFormatter, new RunReportWriter(), out, err));
         commandLine.addSubcommand("show", new ShowCommand(workingDirectory, new RequestFileInspector(), formatter, jsonFormatter, out, err));

@@ -12,7 +12,7 @@ class DoppioConfigStoreTest {
     Path tempDir;
 
     @Test
-    void writesReadsAndClearsEditorCommand() {
+    void writesReadsAndClearsEditorCommand() throws Exception {
         var store = new DoppioConfigStore(tempDir.resolve("config"));
 
         store.write(new DoppioUserConfig("code -w"));

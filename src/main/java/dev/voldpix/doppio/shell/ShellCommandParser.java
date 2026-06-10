@@ -15,17 +15,16 @@ public class ShellCommandParser {
         var tokens = new ArrayList<String>();
         var current = new StringBuilder();
         var quote = '\0';
-        var escaping = false;
 
         for (var i = 0; i < line.length(); i++) {
             var ch = line.charAt(i);
-            if (escaping) {
-                current.append(ch);
-                escaping = false;
-                continue;
-            }
             if (ch == '\\') {
-                escaping = true;
+                if (i + 1 < line.length() && shouldEscape(line.charAt(i + 1), quote)) {
+                    current.append(line.charAt(i + 1));
+                    i++;
+                } else {
+                    current.append(ch);
+                }
                 continue;
             }
             if (quote != '\0') {
@@ -47,14 +46,21 @@ public class ShellCommandParser {
             current.append(ch);
         }
 
-        if (escaping) {
-            current.append('\\');
-        }
         if (quote != '\0') {
             throw new DoppioException(ErrorKind.PARSE, "Unterminated quote");
         }
         addToken(tokens, current);
         return List.copyOf(tokens);
+    }
+
+    private boolean shouldEscape(char ch, char quote) {
+        if (ch == '\\') {
+            return true;
+        }
+        if (quote != '\0') {
+            return ch == quote;
+        }
+        return Character.isWhitespace(ch) || ch == '\'' || ch == '"';
     }
 
     private void addToken(ArrayList<String> tokens, StringBuilder current) {

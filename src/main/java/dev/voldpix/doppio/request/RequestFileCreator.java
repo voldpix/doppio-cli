@@ -4,6 +4,7 @@ import dev.voldpix.doppio.curl.CurlImport;
 import dev.voldpix.doppio.env.DoppioEnvironment;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.ErrorKind;
+import dev.voldpix.doppio.model.HeaderNames;
 import dev.voldpix.doppio.pipeline.DoppioProjectResolver;
 
 import java.io.IOException;
@@ -101,6 +102,10 @@ public class RequestFileCreator {
     }
 
     public RequestFileCreation createEnvironment(String envName, Path workingDirectory) throws DoppioException {
+        if (DoppioEnvironment.isDefaultName(envName)) {
+            throw new DoppioException(ErrorKind.SEED, "`default` is the built-in environment. Edit .doppio/default.seed instead.");
+        }
+
         var environment = DoppioEnvironment.of(envName);
         if (!environment.selected()) {
             throw new DoppioException(ErrorKind.SEED, "Environment name is required");
@@ -238,6 +243,9 @@ public class RequestFileCreator {
         var value = header.substring(eqIdx + 1).trim();
         if (key.isBlank()) {
             throw new DoppioException(ErrorKind.FILE, "Header key is missing: " + header);
+        }
+        if (!HeaderNames.isValid(key)) {
+            throw new DoppioException(ErrorKind.FILE, "Invalid HTTP header name: " + key);
         }
 
         return key + "=" + value;
