@@ -66,6 +66,9 @@ Variable precedence is:
 ```text
 @name Login user
 @var EMAIL=user@example.com
+@expect status=200
+@expect header Content-Type contains json
+@expect body contains token
 POST {{BASE_URL}}/auth/login
 -h Content-Type=application/json
 -h Authorization=Bearer {{TOKEN}}
@@ -94,6 +97,9 @@ Supported metadata before the request line:
 ```text
 @name Human readable request name
 @var KEY=value
+@expect status=200
+@expect header Content-Type contains json
+@expect body contains token
 ```
 
 Only `#` starts a comment. `@name` and `@var` are metadata, not scripting hooks, and must appear before the request line.
@@ -132,6 +138,9 @@ doppio run auth/login
 doppio format
 doppio format auth/login
 doppio format auth
+doppio check
+doppio check auth/login
+doppio check auth
 doppio run auth/login --save
 doppio clean
 doppio rm auth/login
@@ -147,7 +156,23 @@ doppio rm auth/login
 
 `doppio format` formats `.dopo` files. With no target it formats every request under `.doppio/requests`. With a target it accepts the same project shorthand style, so `doppio format auth/login`, `doppio format auth/login.dopo`, and `doppio format auth` work inside a Doppio project.
 
+`doppio check` validates `.dopo` files without executing HTTP. It uses the same shorthand behavior as `format`, so it can check all requests, a folder, or one file. It catches parse errors, missing variables, invalid URLs, invalid JSON/form bodies, and malformed expectations.
+
 `--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes generated report files under `.doppio/requests`. `doppio rm` moves request files to `.doppio/trash` instead of deleting them outright.
+
+## Checks And Expectations
+
+Expectations are small response checks declared before the request line:
+
+```text
+@expect status=200
+@expect header Content-Type contains json
+@expect body contains "token"
+```
+
+They run after HTTP execution. A non-2xx response still fails as before, and a 2xx response also fails when any expectation fails. Body checks treat the response body as plain text for now; nested JSON extraction can come later without changing the command flow.
+
+`doppio check` is intentionally no-network. It validates the request file shape and body processing, but it does not evaluate response expectations because there is no response yet.
 
 ## Formatting
 
@@ -213,6 +238,7 @@ Recommended agent flow:
 ```bash
 doppio ls
 doppio ls --json
+doppio check
 doppio show auth/login --json
 doppio preview auth/login --json
 doppio run auth/login --json

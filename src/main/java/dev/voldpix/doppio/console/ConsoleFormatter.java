@@ -1,6 +1,7 @@
 package dev.voldpix.doppio.console;
 
 import dev.voldpix.doppio.dsl.DslParseException;
+import dev.voldpix.doppio.expect.ExpectationReport;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.Header;
 import dev.voldpix.doppio.model.PreparedRequest;
@@ -41,7 +42,7 @@ public class ConsoleFormatter {
         var out = new PrintWriter(output);
         var request = report.request();
         var response = report.response();
-        var label = response.isSuccess() ? "SUCCESS" : "FAILED";
+        var label = report.isSuccess() ? "SUCCESS" : "FAILED";
 
         out.println();
         out.println(style("Doppio Run", BOLD));
@@ -51,7 +52,7 @@ public class ConsoleFormatter {
         out.printf("File: %s%n", report.requestFile());
         out.printf("Request: %s %s%n", style(request.method().name(), BOLD), style(request.uri().toString(), CYAN));
         out.printf("Result: %s %d  %dms%n",
-            style(label, response.isSuccess() ? GREEN : RED),
+            style(label, report.isSuccess() ? GREEN : RED),
             response.statusCode(),
             response.duration().toMillis());
 
@@ -73,6 +74,8 @@ public class ConsoleFormatter {
             out.println(formatBody(response));
         }
 
+        printExpectationReport(report.expectations(), out);
+
         out.flush();
         return output.toString();
     }
@@ -93,6 +96,11 @@ public class ConsoleFormatter {
             style(report.request().method().name(), BOLD),
             style(report.request().uri().toString(), CYAN));
         printRequestDetails(report.request(), out);
+        if (!report.expectations().isEmpty()) {
+            out.println();
+            out.println(style("Expectations", BOLD));
+            report.expectations().forEach(expectation -> out.println("  " + expectation.label()));
+        }
         if (report.hasBody()) {
             out.println();
             out.println(style("Request Body", BOLD));
@@ -112,6 +120,23 @@ public class ConsoleFormatter {
         }
 
         err.flush();
+    }
+
+    private void printExpectationReport(ExpectationReport expectations, PrintWriter out) {
+        if (expectations == null || expectations.isEmpty()) {
+            return;
+        }
+
+        out.println();
+        out.println(style("Expectations", BOLD));
+        out.printf("  Passed: %d%n", expectations.passedCount());
+        out.printf("  Failed: %d%n", expectations.failedCount());
+        expectations.results().forEach(result -> out.printf(
+            "  %s %s%s%n",
+            style(result.passed() ? "PASS" : "FAIL", result.passed() ? GREEN : RED),
+            result.expectation().label(),
+            result.passed() ? "" : " - " + result.message()
+        ));
     }
 
     private void printRequestDetails(PreparedRequest request, PrintWriter out) {

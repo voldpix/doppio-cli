@@ -1,5 +1,7 @@
 package dev.voldpix.doppio.dsl;
 
+import dev.voldpix.doppio.expect.Expectation;
+import dev.voldpix.doppio.expect.ExpectationKind;
 import dev.voldpix.doppio.model.BodyBlock;
 import dev.voldpix.doppio.model.BodyKind;
 import dev.voldpix.doppio.model.DoppioRequest;
@@ -29,9 +31,13 @@ public class DslProcessor {
         return new DslInspection(blocks.metadata(), parseRequest(blocks, true));
     }
 
-    public DoppioRequest process(String content) throws DslParseException {
+    public DslInspection processWithMetadata(String content) throws DslParseException {
         var blocks = extractBlocks(content, true);
-        return parseRequest(blocks, false);
+        return new DslInspection(blocks.metadata(), parseRequest(blocks, false));
+    }
+
+    public DoppioRequest process(String content) throws DslParseException {
+        return processWithMetadata(content).request();
     }
 
     private DoppioRequest parseRequest(RawBlocks blocks, boolean allowTemplatedUrl) throws DslParseException {
@@ -217,9 +223,65 @@ public class DslProcessor {
         } else if (line.startsWith("@var")) {
             var variable = line.replaceFirst("^@var(\\s+|$)", "").trim();
             parseLocalVariable(line, variable, metadata, errors);
+        } else if (line.startsWith("@expect")) {
+            var expectation = line.replaceFirst("^@expect(\\s+|$)", "").trim();
+            parseExpectation(line, expectation, metadata, errors);
         } else {
             errors.add(new ParseError(line, "unknown metadata directive"));
         }
+    }
+
+    private void parseExpectation(String line, String expectation, MetadataBuilder metadata, List<ParseError> errors) {
+        if (expectation.isBlank()) {
+            errors.add(new ParseError(line, "expected: @expect status=200, @expect header <name> contains <text>, or @expect body contains <text>"));
+            return;
+        }
+
+        if (expectation.equals("status") || expectation.startsWith("status=") || expectation.startsWith("status ")) {
+            parseStatusExpectation(line, expectation, metadata, errors);
+            return;
+        }
+
+        var headerMatcher = Pattern.compile("^header\\s+(\\S+)\\s+contains\\s+(.+)$", Pattern.CASE_INSENSITIVE)
+            .matcher(expectation);
+        if (headerMatcher.matches()) {
+            metadata.addExpectation(new Expectation(
+                ExpectationKind.HEADER_CONTAINS,
+                headerMatcher.group(1).trim(),
+                stripMatchingQuotes(headerMatcher.group(2).trim()),
+                line
+            ));
+            return;
+        }
+
+        var bodyMatcher = Pattern.compile("^body\\s+contains\\s+(.+)$", Pattern.CASE_INSENSITIVE)
+            .matcher(expectation);
+        if (bodyMatcher.matches()) {
+            metadata.addExpectation(new Expectation(
+                ExpectationKind.BODY_CONTAINS,
+                "body",
+                stripMatchingQuotes(bodyMatcher.group(1).trim()),
+                line
+            ));
+            return;
+        }
+
+        errors.add(new ParseError(line, "expected: @expect status=200, @expect header <name> contains <text>, or @expect body contains <text>"));
+    }
+
+    private void parseStatusExpectation(String line, String expectation, MetadataBuilder metadata, List<ParseError> errors) {
+        var expected = expectation.replaceFirst("^status(\\s+|=|$)", "").trim();
+        if (expected.isBlank()) {
+            errors.add(new ParseError(line, "expected: @expect status=200"));
+            return;
+        }
+        try {
+            Integer.parseInt(expected);
+        } catch (NumberFormatException e) {
+            errors.add(new ParseError(line, "expected numeric HTTP status"));
+            return;
+        }
+        metadata.addExpectation(new Expectation(ExpectationKind.STATUS, "status", expected, line));
     }
 
     private void parseLocalVariable(String line, String variable, MetadataBuilder metadata, List<ParseError> errors) {
@@ -331,6 +393,7 @@ public class DslProcessor {
     private static final class MetadataBuilder {
         private String name;
         private final Map<String, String> variables = new LinkedHashMap<>();
+        private final List<Expectation> expectations = new ArrayList<>();
 
         private void setName(String value, String line, List<ParseError> errors) {
             if (name != null) {
@@ -348,8 +411,12 @@ public class DslProcessor {
             variables.put(key, value);
         }
 
+        private void addExpectation(Expectation expectation) {
+            expectations.add(expectation);
+        }
+
         private DslMetadata build() {
-            return new DslMetadata(name, variables);
+            return new DslMetadata(name, variables, expectations);
         }
     }
 }

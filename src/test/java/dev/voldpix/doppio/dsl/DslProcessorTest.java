@@ -1,5 +1,6 @@
 package dev.voldpix.doppio.dsl;
 
+import dev.voldpix.doppio.expect.ExpectationKind;
 import dev.voldpix.doppio.model.BodyKind;
 import dev.voldpix.doppio.model.Header;
 import dev.voldpix.doppio.model.HttpMethod;
@@ -50,6 +51,31 @@ class DslProcessorTest {
     }
 
     @Test
+    void parseExpectationsBeforeRequest() throws Exception {
+        var input = """
+            @name Login user
+            @expect status=200
+            @expect header Content-Type contains json
+            @expect body contains "ok"
+            GET https://example.com/users/me
+            """;
+
+        var metadata = processor.parseMetadata(input);
+        var inspection = processor.processWithMetadata(input);
+
+        assertThat(metadata.expectations())
+            .extracting("kind")
+            .containsExactly(ExpectationKind.STATUS, ExpectationKind.HEADER_CONTAINS, ExpectationKind.BODY_CONTAINS);
+        assertThat(metadata.expectations())
+            .extracting("target")
+            .containsExactly("status", "Content-Type", "body");
+        assertThat(metadata.expectations())
+            .extracting("expected")
+            .containsExactly("200", "json", "ok");
+        assertThat(inspection.metadata().expectations()).hasSize(3);
+    }
+
+    @Test
     void inspectAllowsTemplatedUrlWithoutHydration() throws Exception {
         var input = """
             @name Login user
@@ -80,6 +106,14 @@ class DslProcessorTest {
         assertThatThrownBy(() -> processor.process("""
             GET https://example.com
             @name Too late
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("before the request line"));
+
+        assertThatThrownBy(() -> processor.process("""
+            GET https://example.com
+            @expect status=200
             """))
             .isInstanceOf(DslParseException.class)
             .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
@@ -254,6 +288,25 @@ class DslProcessorTest {
         assertThatThrownBy(() -> processor.process(input))
             .isInstanceOf(DslParseException.class)
             .satisfies(error -> assertThat(((DslParseException) error).errors()).hasSize(3));
+    }
+
+    @Test
+    void throwOnInvalidExpectations() {
+        assertThatThrownBy(() -> processor.process("""
+            @expect status=ok
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("numeric HTTP status"));
+
+        assertThatThrownBy(() -> processor.process("""
+            @expect header Content-Type equals json
+            GET https://example.com
+            """))
+            .isInstanceOf(DslParseException.class)
+            .satisfies(error -> assertThat(((DslParseException) error).errors().getFirst().hint())
+                .contains("@expect status=200"));
     }
 
     @Test
