@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Set up GraalVM
         uses: graalvm/setup-graalvm@v1
@@ -46,17 +48,23 @@ jobs:
           mvn --version
 
       - name: Test and package jar
-        run: mvn clean package
+        run: |
+          mvn clean package
+          echo "--- Built jars ---"
+          ls -lh target/*.jar
 
       - name: Build native executable
         run: |
+          set -euo pipefail
           mkdir -p dist/native
-          cd dist/native
           native-image \
             --no-fallback \
             -H:+ReportExceptionStackTraces \
             -H:Name=${{ matrix.executable }} \
-            -jar ../../target/doppio-1.0-SNAPSHOT.jar
+            -H:Path=dist/native \
+            -jar target/doppio-1.0-SNAPSHOT.jar
+          echo "--- Built files ---"
+          ls -lh dist/native/
 
       - name: Verify executable
         run: ./dist/native/${{ matrix.executable }} --help
