@@ -151,7 +151,7 @@ public class DoppioPipeline {
             return Map.of();
         }
 
-        var seedValues = new LinkedHashMap<>(seedFileLoader.loadIfExists(resolution.seedFile()));
+        var seedValues = new LinkedHashMap<>(seedFileLoader.loadResolvedIfExists(resolution.seedFile()));
         if (!selectedEnvironment.selected()) {
             return seedValues;
         }
@@ -163,8 +163,7 @@ public class DoppioPipeline {
                 "Seed not found: " + selectedEnvironment.name() + " (" + envFile + ")"
             );
         }
-        seedValues.putAll(seedFileLoader.loadIfExists(envFile));
-        return seedValues;
+        return new LinkedHashMap<>(seedFileLoader.loadResolvedIfExists(envFile, seedValues));
     }
 
     private String removeLocalVariableLines(String content) {

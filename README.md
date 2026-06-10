@@ -59,9 +59,10 @@ doppio run auth/login --env dev --json
 BASE_URL=https://api.example.com
 TOKEN=secret-token
 EMAIL="me@example.com"
+API_URL={{BASE_URL}}/v1
 ```
 
-Blank lines and `#` comments are allowed. Whitespace around keys and values is trimmed. Matching single or double quotes around values are stripped.
+Blank lines and `#` comments are allowed. Whitespace around keys and values is trimmed. Matching single or double quotes around values are stripped. Seed values can reference other seed values with `{{KEY}}`. `default.seed` resolves against itself; selected seed overlays resolve against `default.seed` plus their own values. OS environment variables are not used while resolving seed files.
 
 Variable precedence is:
 

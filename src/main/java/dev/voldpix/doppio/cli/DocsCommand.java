@@ -32,6 +32,12 @@ public class DocsCommand implements Callable<Integer> {
             BASE_URL=https://api.example.com
             TOKEN=secret-token
             EMAIL="me@example.com"
+            API_URL={{BASE_URL}}/v1
+
+          Seed values can reference other seed values with {{KEY}}.
+          default.seed resolves against itself.
+          Selected seed overlays resolve against default.seed plus their own values.
+          OS environment variables are not used while resolving seed files.
 
         Variables
           Use {{KEY}} placeholders in URLs, headers, query params, and bodies.

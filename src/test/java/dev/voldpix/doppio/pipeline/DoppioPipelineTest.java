@@ -135,6 +135,56 @@ class DoppioPipelineTest {
     }
 
     @Test
+    void seedVariablesResolveBeforeRequestHydration() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/seeds"));
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), """
+            BASE_URL=https://{{HOST}}
+            HOST=default.example.com
+            TOKEN_PREFIX=base
+            """);
+        Files.writeString(tempDir.resolve(".doppio/seeds/dev.seed"), """
+            HOST=dev.example.com
+            BASE_URL=https://{{HOST}}/api
+            TOKEN={{TOKEN_PREFIX}}-{{HOST}}
+            """);
+        Files.writeString(tempDir.resolve(".doppio/recipes/env.dopo"), """
+            GET {{BASE_URL}}/users/me
+            -h Authorization=Bearer {{TOKEN}}
+            """);
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        pipeline(transport).run(
+            Path.of("env"),
+            tempDir,
+            Map.of("HOST", "os.example.com", "TOKEN", "os-token"),
+            DoppioEnvironment.of("dev")
+        );
+
+        assertThat(transport.lastRequest.uri().toString()).isEqualTo("https://dev.example.com/api/users/me");
+        assertThat(transport.lastRequest.headers())
+            .contains(new dev.voldpix.doppio.model.Header("Authorization", "Bearer base-dev.example.com"));
+    }
+
+    @Test
+    void seedVariableResolutionDoesNotUseOsEnvironmentFallback() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/recipes"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://{{HOST}}");
+        Files.writeString(tempDir.resolve(".doppio/recipes/env.dopo"), "GET {{BASE_URL}}/users/me");
+        var transport = new FakeTransport(new DoppioResponse(200, Map.of(), "ok", Duration.ofMillis(2)));
+
+        assertThatThrownBy(() -> pipeline(transport).run(
+            Path.of("env"),
+            tempDir,
+            Map.of("HOST", "os.example.com")
+        ))
+            .isInstanceOf(DoppioException.class)
+            .hasMessageContaining("Missing seed variable")
+            .hasMessageContaining("BASE_URL references HOST");
+        assertThat(transport.callCount).isZero();
+    }
+
+    @Test
     void selectedEnvironmentMustExistBeforeHttpExecution() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/recipes"));
         Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
