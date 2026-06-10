@@ -237,6 +237,43 @@ class DoppioCommandTest {
     }
 
     @Test
+    void showResolvesOptionalDopoExtensionFromProjectRootAndDoppioDirectory() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login user
+            GET https://example.com/login
+            """);
+
+        var rootOut = new StringWriter();
+        var rootExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(rootOut, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("show", "auth/login");
+
+        assertThat(rootExit).isZero();
+        assertThat(rootOut.toString())
+            .contains("Name: Login user")
+            .contains("File: auth/login.dopo");
+
+        var doppioOut = new StringWriter();
+        var doppioExit = DoppioCommand.commandLine(
+            tempDir.resolve(".doppio"),
+            Map.of(),
+            new PrintWriter(doppioOut, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("show", "auth/login");
+
+        assertThat(doppioExit).isZero();
+        assertThat(doppioOut.toString())
+            .contains("Name: Login user")
+            .contains("File: auth/login.dopo");
+    }
+
+    @Test
     void cleanRemovesSavedReportsUnderRequestsFolder() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
         Files.writeString(tempDir.resolve(".doppio/local.seed"), "BASE_URL=https://example.com");

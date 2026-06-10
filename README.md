@@ -8,7 +8,7 @@ The core unit is a `.dopo` file under `.doppio/requests`. Doppio resolves reques
 doppio run auth/login
 ```
 
-The `.dopo` extension is optional for request shorthands inside a Doppio project. Standalone request files outside a project must use the full filename.
+The `.dopo` extension is optional for request shorthands inside a Doppio project, including `run`, `show`, and `rm`. Standalone request files outside a project must use the full filename.
 
 ## Project Layout
 
