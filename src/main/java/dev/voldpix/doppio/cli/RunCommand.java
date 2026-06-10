@@ -61,6 +61,10 @@ public class RunCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
+            if (!json) {
+                out.println("Brewing recipe: " + file);
+                out.flush();
+            }
             var report = pipeline.run(file, workingDirectory, environment, DoppioEnvironment.of(envName));
             Path savedReport = null;
             if (save) {

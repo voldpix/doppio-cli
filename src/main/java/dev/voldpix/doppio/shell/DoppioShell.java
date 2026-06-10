@@ -196,6 +196,9 @@ public class DoppioShell {
                 case "doctor" -> executeCli(withSessionEnv("doctor", args));
                 case "clean" -> executeCli(join("clean", args));
                 case "rm" -> removeRequest(args, reader);
+                case "mv", "move" -> moveRequest("mv", args, reader);
+                case "cp" -> moveRequest("cp", args, reader);
+                case "rename" -> renameRequest(args, reader);
                 case "body" -> {
                     ensureNoArgs(args, "Usage: body");
                     printLastBody();
@@ -268,6 +271,34 @@ public class DoppioShell {
     private void removeRequest(List<String> args, LineReader reader) throws DoppioException {
         var request = chooseRequest(singleTarget(args), reader);
         request.ifPresent(candidate -> executeCli(List.of("rm", candidate.relativePath().toString())));
+    }
+
+    private void moveRequest(String command, List<String> args, LineReader reader) throws DoppioException {
+        if (args.size() > 2) {
+            throw new DoppioException(ErrorKind.FILE, "Usage: " + command + " [request] DESTINATION");
+        }
+        var request = chooseRequest(args.isEmpty() ? null : args.getFirst(), reader);
+        if (request.isEmpty()) {
+            return;
+        }
+        var destination = args.size() == 2
+            ? args.get(1)
+            : readPickerLine(reader, "Destination: ", "Recipe operation cancelled");
+        executeCli(List.of(command, request.get().relativePath().toString(), destination));
+    }
+
+    private void renameRequest(List<String> args, LineReader reader) throws DoppioException {
+        if (args.size() > 2) {
+            throw new DoppioException(ErrorKind.FILE, "Usage: rename [request] NAME");
+        }
+        var request = chooseRequest(args.isEmpty() ? null : args.getFirst(), reader);
+        if (request.isEmpty()) {
+            return;
+        }
+        var name = args.size() == 2
+            ? args.get(1)
+            : readPickerLine(reader, "New name: ", "Recipe rename cancelled");
+        executeCli(List.of("rename", request.get().relativePath().toString(), name));
     }
 
     private Optional<ShellRequestCandidate> chooseRequest(String target, LineReader reader) throws DoppioException {
@@ -554,6 +585,9 @@ public class DoppioShell {
               format [request-or-folder]
               check [request-or-folder] [--env NAME]
               rm [request]
+              mv [request] DESTINATION | move [request] DESTINATION
+              cp [request] DESTINATION
+              rename [request] NAME
               seed list | seed use NAME | seed clear | seed edit default|NAME | seed gen NAME | seed rm NAME
               config editor show | config editor use COMMAND | config editor clear
               projects | project <number|path>

@@ -187,6 +187,26 @@ class DoppioShellTest {
     }
 
     @Test
+    void fileOpsUseShellRequestLookup() throws Exception {
+        var project = project("api");
+        request(project, "auth/login.dopo", "GET https://example.com/login");
+        var out = new StringWriter();
+        var shell = shell(project, out, new StringWriter(), new FakeTransport(), new CapturingEditor());
+
+        var exit = shell.run(reader("cp login auth/login-copy\nrename login-copy login-v2\nexit\n"), null, null);
+
+        assertThat(exit).isZero();
+        assertThat(project.resolve(".doppio/recipes/auth/login.dopo")).exists();
+        assertThat(project.resolve(".doppio/recipes/auth/login-copy.dopo")).doesNotExist();
+        assertThat(project.resolve(".doppio/recipes/auth/login-v2.dopo")).exists();
+        assertThat(Files.readString(project.resolve(".doppio/recipes/auth/login-v2.dopo")))
+            .isEqualTo("GET https://example.com/login");
+        assertThat(out.toString())
+            .contains("Recipe copied")
+            .contains("Recipe renamed");
+    }
+
+    @Test
     void promptDisplaysDefaultWhenNoEnvSelected() {
         var session = new ShellSession(tempDir, tempDir.resolve(".doppio"), null);
 
