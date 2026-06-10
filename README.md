@@ -1,27 +1,65 @@
 # Doppio
 
-Doppio is a console-first HTTP request runner. It is aimed at projects where request files should live with the codebase, stay readable in a terminal, and run without opening a GUI client.
+Doppio is a console-first HTTP request runner. Request files live with the repo, stay readable in a terminal, and can be run by humans, CI, or coding agents without opening a GUI client.
 
-The core unit is a `.dopo` file under `.doppio/requests`. Doppio resolves requests by shorthand, so a file at `.doppio/requests/auth/login.dopo` can be run as:
+The core unit is a `.dopo` file under `.doppio/requests`. Doppio resolves requests by shorthand, so `.doppio/requests/auth/login.dopo` can be executed as:
 
 ```bash
 doppio run auth/login
 ```
 
-The `.dopo` extension is optional for request shorthands inside a Doppio project, including `run`, `show`, and `rm`. Standalone request files outside a project must use the full filename.
+The `.dopo` extension is optional inside a Doppio project for `run`, `show`, `preview`, and `rm`. Standalone request files outside a project must use the full filename.
+
+## Quick Start
+
+```bash
+doppio init
+doppio gen auth/login --method POST --body json --bearer
+doppio ls
+doppio preview auth/login
+doppio run auth/login
+```
+
+For a machine-readable agent workflow:
+
+```bash
+doppio ls
+doppio ls --json
+doppio show auth/login --json
+doppio preview auth/login --json
+doppio run auth/login --json
+```
+
+`doppio docs` prints the built-in syntax and command reference.
 
 ## Project Layout
 
 ```text
 .doppio/
-  local.seed
+  default.seed
   requests/
     test.dopo
     auth/
       login.dopo
 ```
 
-`local.seed` stores default variables as `KEY=value`. Request-local `@var` values override seed values, and seed values override the OS environment.
+`doppio init` creates `.doppio/default.seed`, `.doppio/requests/example.dopo`, and `.doppio/requests/test.dopo`, then prints the full `.doppio` path as a tree.
+
+`default.seed` stores default variables as `KEY=value`:
+
+```text
+BASE_URL=https://api.example.com
+TOKEN=secret-token
+EMAIL="me@example.com"
+```
+
+Blank lines and `#` comments are allowed. Whitespace around keys and values is trimmed. Matching single or double quotes around values are stripped.
+
+Variable precedence is:
+
+```text
+@var in the request file > .doppio/default.seed > OS environment
+```
 
 ## Request DSL
 
@@ -30,6 +68,7 @@ The `.dopo` extension is optional for request shorthands inside a Doppio project
 @var EMAIL=user@example.com
 POST {{BASE_URL}}/auth/login
 -h Content-Type=application/json
+-h Authorization=Bearer {{TOKEN}}
 -q source=doppio
 
 <json|
@@ -40,39 +79,118 @@ POST {{BASE_URL}}/auth/login
 |>
 ```
 
-Supported body blocks:
+Supported request directives:
 
 ```text
-<| ... |>       # JSON by default
-<json| ... |>
-<text| ... |>
-<csv| ... |>
-<form| ... |>   # key=value lines, sent as application/x-www-form-urlencoded
+GET|POST|PUT|PATCH|DELETE https://example.com/path
+-h key=value
+header key=value
+-q key=value
+query key=value
+```
+
+Supported metadata before the request line:
+
+```text
+@name Human readable request name
+@var KEY=value
 ```
 
 Only `#` starts a comment. `@name` and `@var` are metadata, not scripting hooks, and must appear before the request line.
+
+## Body Blocks
+
+```text
+<| ... |>       JSON by default
+<json| ... |>   application/json
+<text| ... |>   text/plain; charset=utf-8
+<csv| ... |>    text/csv; charset=utf-8
+<form| ... |>   application/x-www-form-urlencoded
+```
+
+Form bodies use line-based `key=value` content:
+
+```text
+<form|
+email=user@example.com
+remember=true
+|>
+```
+
+Blank lines and `#` comments inside body blocks are ignored. Doppio adds the default `Content-Type` for typed bodies unless the request already sets one.
 
 ## Commands
 
 ```bash
 doppio init
-doppio gen auth/login
-doppio gen users/me --method GET --bearer
-doppio gen auth/login --body form -H X-Client=doppio -q source=doppio
+doppio docs
 doppio list
 doppio ls
 doppio show auth/login
-doppio run test
+doppio preview auth/login
+doppio run auth/login
 doppio run auth/login --save
 doppio clean
 doppio rm auth/login
 ```
 
-`doppio gen` creates editable request placeholders under `.doppio/requests`, and `doppio show` inspects metadata, method, URL, headers, query params, local variables, and body type without executing HTTP.
+`doppio list` and `doppio ls` print the full `.doppio` path on top and then a request tree without exposing the internal `requests` folder as part of the shorthand.
 
-`doppio gen` defaults to `POST` with a JSON body. `GET` and `DELETE` default to no body, while `POST`, `PUT`, and `PATCH` default to JSON unless `--body none|json|text|csv|form` is provided. `--bearer` adds `Authorization=Bearer {{TOKEN}}`, and `-H/--header` plus `-q/--query` add request directives to the generated file.
+`doppio show` inspects the raw request file without hydration or network execution. It is useful before editing a request.
 
-`--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes those generated report files under `.doppio/requests`. `doppio rm` moves request files to `.doppio/trash` instead of deleting them outright.
+`doppio preview` hydrates variables, validates the body, prepares the final URL, headers, query params, and body, then stops before HTTP execution.
+
+`doppio run` executes the request and prints request details, response status, elapsed time, response headers, and response body. Non-2xx HTTP responses still print response details and exit with failure.
+
+`--save` writes the rendered run report next to the resolved request file as `<request-name>-<epochMillis>.txt`. `doppio clean` removes generated report files under `.doppio/requests`. `doppio rm` moves request files to `.doppio/trash` instead of deleting them outright.
+
+## Generation Shortcuts
+
+`doppio gen` creates editable request placeholders under `.doppio/requests`.
+
+```bash
+doppio gen auth/login
+doppio gen users/me --method GET --bearer
+doppio gen auth/login --method POST --body form --bearer
+doppio gen auth/login --body form -H X-Client=doppio -q source=doppio
+doppio gen export/users --body csv
+doppio gen notes/ping --body text
+doppio gen jobs/start --method POST --body none
+```
+
+Defaults:
+
+```text
+no --method means POST
+GET and DELETE default to no body
+POST, PUT, and PATCH default to JSON
+--bearer adds Authorization=Bearer {{TOKEN}}
+-H/--header adds -h lines
+-q/--query adds -q lines, including key=value or flag-style query params
+```
+
+## JSON Output
+
+Use JSON output when a script or coding agent needs stable fields instead of terminal formatting:
+
+```bash
+doppio ls --json
+doppio show auth/login --json
+doppio preview auth/login --json
+doppio run auth/login --json
+```
+
+Recommended agent flow:
+
+```bash
+doppio ls
+doppio ls --json
+doppio show auth/login --json
+doppio preview auth/login --json
+doppio run auth/login --json
+```
+
+`ls --json` reports request names, paths, and parse markers. `show --json` reports raw request structure and local variables. `preview --json` reports the final hydrated request without network execution. `run --json` includes response status, headers, body, duration, and failure status for non-2xx responses.
 
 ## Build
 

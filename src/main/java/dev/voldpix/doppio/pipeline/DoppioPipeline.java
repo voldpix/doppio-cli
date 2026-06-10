@@ -7,6 +7,7 @@ import dev.voldpix.doppio.http.JavaHttpTransport;
 import dev.voldpix.doppio.http.RequestPreparer;
 import dev.voldpix.doppio.model.DoppioException;
 import dev.voldpix.doppio.model.ErrorKind;
+import dev.voldpix.doppio.model.PreviewReport;
 import dev.voldpix.doppio.model.RunReport;
 import dev.voldpix.doppio.seed.SeedFileLoader;
 import dev.voldpix.doppio.template.TemplateEngine;
@@ -63,6 +64,14 @@ public class DoppioPipeline {
 
     public RunReport run(Path requestFile, Path workingDirectory, Map<String, String> environment)
         throws DoppioException {
+        var preview = preview(requestFile, workingDirectory, environment);
+        var response = transport.execute(preview.request(), timeout);
+
+        return new RunReport(preview.requestFile(), preview.request(), response);
+    }
+
+    public PreviewReport preview(Path requestFile, Path workingDirectory, Map<String, String> environment)
+        throws DoppioException {
         var resolution = requestFileResolver.resolve(requestFile, workingDirectory);
         var rawContent = readRequestFile(resolution.requestFile());
         var metadata = dslProcessor.parseMetadata(rawContent);
@@ -74,9 +83,9 @@ public class DoppioPipeline {
         var request = dslProcessor.process(hydratedContent);
         var processedBody = bodyProcessor.process(request.body());
         var preparedRequest = requestPreparer.prepare(request, processedBody);
-        var response = transport.execute(preparedRequest, timeout);
+        var bodyKind = request.body() == null ? null : request.body().kind();
 
-        return new RunReport(resolution.requestFile(), preparedRequest, response);
+        return new PreviewReport(resolution.requestFile(), preparedRequest, bodyKind, processedBody);
     }
 
     private String removeLocalVariableLines(String content) {

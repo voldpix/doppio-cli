@@ -31,7 +31,7 @@ public class RequestFileResolver {
             return existingStandaloneFile(directCandidate, requestedFile);
         }
 
-        var seedFile = doppioDir.resolve("local.seed");
+        var seedFile = seedFile(doppioDir);
         if (isInside(normalizedWorkingDirectory, doppioDir) && Files.exists(directCandidate)) {
             return existingFile(directCandidate, seedFile);
         }
@@ -70,8 +70,16 @@ public class RequestFileResolver {
     }
 
     private RequestResolution existingDirectFile(Path directCandidate, Path doppioDir) throws DoppioException {
-        var seedFile = doppioDir == null ? null : doppioDir.resolve("local.seed");
+        var seedFile = doppioDir == null ? null : seedFile(doppioDir);
         return existingFile(directCandidate, seedFile);
+    }
+
+    private Path seedFile(Path doppioDir) {
+        var defaultSeed = doppioDir.resolve("default.seed");
+        if (Files.exists(defaultSeed)) {
+            return defaultSeed;
+        }
+        return doppioDir.resolve("local.seed");
     }
 
     private RequestResolution existingStandaloneFile(Path directCandidate, Path requestedFile) throws DoppioException {

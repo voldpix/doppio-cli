@@ -1,6 +1,7 @@
 package dev.voldpix.doppio.cli;
 
 import dev.voldpix.doppio.console.ConsoleFormatter;
+import dev.voldpix.doppio.console.JsonFormatter;
 import dev.voldpix.doppio.http.HttpTransport;
 import dev.voldpix.doppio.list.RequestListService;
 import dev.voldpix.doppio.pipeline.DoppioPipeline;
@@ -47,6 +48,7 @@ public class DoppioCommand implements Callable<Integer> {
         HttpTransport transport
     ) {
         var formatter = new ConsoleFormatter();
+        var jsonFormatter = new JsonFormatter();
         var pipeline = transport == null
             ? new DoppioPipeline()
             : new DoppioPipeline(
@@ -63,11 +65,13 @@ public class DoppioCommand implements Callable<Integer> {
         var commandLine = new CommandLine(new DoppioCommand());
         commandLine.addSubcommand("init", new InitCommand(workingDirectory, out));
         commandLine.addSubcommand("gen", new GenCommand(workingDirectory, new RequestFileCreator(), out, err));
-        commandLine.addSubcommand("run", new RunCommand(workingDirectory, environment, pipeline, formatter, new RunReportWriter(), out, err));
-        commandLine.addSubcommand("show", new ShowCommand(workingDirectory, new RequestFileInspector(), formatter, out, err));
-        commandLine.addSubcommand("list", new ListCommand(workingDirectory, new RequestListService(), out, err));
+        commandLine.addSubcommand("run", new RunCommand(workingDirectory, environment, pipeline, formatter, jsonFormatter, new RunReportWriter(), out, err));
+        commandLine.addSubcommand("show", new ShowCommand(workingDirectory, new RequestFileInspector(), formatter, jsonFormatter, out, err));
+        commandLine.addSubcommand("preview", new PreviewCommand(workingDirectory, environment, pipeline, formatter, jsonFormatter, out, err));
+        commandLine.addSubcommand("list", new ListCommand(workingDirectory, new RequestListService(), jsonFormatter, out, err));
         commandLine.addSubcommand("clean", new CleanCommand(workingDirectory, new ReportCleaner(), out, err));
         commandLine.addSubcommand("rm", new RmCommand(workingDirectory, new RequestFileRemover(), out, err));
+        commandLine.addSubcommand("docs", new DocsCommand(out));
         commandLine.setOut(out);
         commandLine.setErr(err);
         return commandLine;
