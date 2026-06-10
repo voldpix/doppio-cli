@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 
-@Command(name = "list", mixinStandardHelpOptions = true, description = "List Doppio request files.")
+@Command(name = "list", aliases = "ls", mixinStandardHelpOptions = true, description = "List Doppio request files.")
 public class ListCommand implements Callable<Integer> {
     private final Path workingDirectory;
     private final RequestListService listService;
