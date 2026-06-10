@@ -33,6 +33,7 @@ class DoppioCommandTest {
 
         assertThat(exit).isZero();
         assertThat(tempDir.resolve(".doppio/default.seed")).exists();
+        assertThat(tempDir.resolve(".doppio/envs")).isDirectory();
         assertThat(tempDir.resolve(".doppio/local.seed")).doesNotExist();
         assertThat(tempDir.resolve(".doppio/requests/example.dopo")).exists();
         assertThat(tempDir.resolve(".doppio/requests/test.dopo")).exists();
@@ -45,6 +46,7 @@ class DoppioCommandTest {
             .contains("Initialized Doppio project")
             .contains(tempDir.resolve(".doppio").toAbsolutePath().normalize().toString())
             .contains("|-- default.seed")
+            .contains("|-- envs/")
             .contains("`-- requests/")
             .contains("|-- example.dopo")
             .contains("`-- test.dopo");
@@ -142,6 +144,32 @@ class DoppioCommandTest {
             .contains("\"status\":200")
             .contains("\"body\":\"{\\\"ok\\\":true}\"")
             .doesNotContain("\u001B[");
+    }
+
+    @Test
+    void runCanUseSelectedEnvironment() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/envs"));
+        Files.createDirectories(tempDir.resolve(".doppio/requests/auth"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
+        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/auth/login.dopo"), """
+            @name Login request
+            GET {{BASE_URL}}/get
+            """);
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("run", "auth/login", "--env", "dev");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Env: dev")
+            .contains("https://dev.example.com/get");
     }
 
     @Test
@@ -258,6 +286,58 @@ class DoppioCommandTest {
         assertThat(out.toString())
             .contains("Created request")
             .contains("auth/login.dopo");
+    }
+
+    @Test
+    void genCanCreateEnvironmentSeedFiles() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        var out = new StringWriter();
+        var err = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "--env", "dev");
+
+        var envFile = tempDir.resolve(".doppio/envs/dev.seed");
+        assertThat(exit).isZero();
+        assertThat(err.toString()).isBlank();
+        assertThat(envFile).exists();
+        assertThat(Files.readString(envFile))
+            .contains("--env dev")
+            .contains("BASE_URL=https://api.dev.example.com")
+            .contains("TOKEN=");
+        assertThat(out.toString())
+            .contains("Created environment")
+            .contains("envs/dev.seed");
+
+        err.getBuffer().setLength(0);
+        var overwriteExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "--env", "dev");
+
+        assertThat(overwriteExit).isEqualTo(1);
+        assertThat(err.toString()).contains("Environment already exists: dev");
+
+        err.getBuffer().setLength(0);
+        var mixedExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(new StringWriter(), true),
+            new PrintWriter(err, true),
+            new FakeTransport()
+        ).execute("gen", "--env", "staging", "auth/login");
+
+        assertThat(mixedExit).isEqualTo(1);
+        assertThat(err.toString()).contains("--env cannot be combined");
+        assertThat(tempDir.resolve(".doppio/envs/staging.seed")).doesNotExist();
     }
 
     @Test
@@ -676,6 +756,31 @@ class DoppioCommandTest {
     }
 
     @Test
+    void previewJsonIncludesSelectedEnvironment() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/envs"));
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
+        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/ping.dopo"), "GET {{BASE_URL}}/ping");
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("preview", "--json", "--env", "dev", "ping");
+
+        assertThat(exit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("\"environment\":\"dev\"")
+            .contains("\"url\":\"https://dev.example.com/ping\"");
+    }
+
+    @Test
     void previewJsonErrorsDoNotExecuteHttp() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests"));
         Files.writeString(tempDir.resolve(".doppio/requests/missing.dopo"), "GET https://example.com/{{MISSING}}");
@@ -973,6 +1078,32 @@ class DoppioCommandTest {
     }
 
     @Test
+    void checkCanUseSelectedEnvironment() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/envs"));
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
+        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/env.dopo"), "GET {{BASE_URL}}/health");
+        var out = new StringWriter();
+        var transport = new FakeTransport();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            transport
+        ).execute("check", "--env", "dev");
+
+        assertThat(exit).isZero();
+        assertThat(transport.callCount).isZero();
+        assertThat(out.toString())
+            .contains("Env: dev")
+            .contains("Valid: 1")
+            .contains("valid   env.dopo");
+    }
+
+    @Test
     void checkReportsInvalidExpectationWithoutExecutingHttp() throws Exception {
         Files.createDirectories(tempDir.resolve(".doppio/requests"));
         Files.writeString(tempDir.resolve(".doppio/requests/bad-expect.dopo"), """
@@ -1069,6 +1200,47 @@ class DoppioCommandTest {
     }
 
     @Test
+    void doctorReportsSelectedEnvironment() throws Exception {
+        Files.createDirectories(tempDir.resolve(".doppio/envs"));
+        Files.createDirectories(tempDir.resolve(".doppio/requests"));
+        Files.writeString(tempDir.resolve(".doppio/default.seed"), "BASE_URL=https://default.example.com");
+        Files.writeString(tempDir.resolve(".doppio/envs/dev.seed"), "BASE_URL=https://dev.example.com");
+        Files.writeString(tempDir.resolve(".doppio/requests/health.dopo"), "GET {{BASE_URL}}/health");
+        var out = new StringWriter();
+
+        var exit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(out, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("doctor", "--env", "dev");
+
+        assertThat(exit).isZero();
+        assertThat(out.toString())
+            .contains("Env: dev")
+            .contains("PASS env")
+            .contains("1 env file(s) found: dev")
+            .contains("Selected env found: dev")
+            .contains("Fail: 0");
+
+        var missingOut = new StringWriter();
+        var missingExit = DoppioCommand.commandLine(
+            tempDir,
+            Map.of(),
+            new PrintWriter(missingOut, true),
+            new PrintWriter(new StringWriter(), true),
+            new FakeTransport()
+        ).execute("doctor", "--env", "missing");
+
+        assertThat(missingExit).isEqualTo(1);
+        assertThat(missingOut.toString())
+            .contains("Env: missing")
+            .contains("FAIL env")
+            .contains("Selected env not found: missing");
+    }
+
+    @Test
     void docsPrintsComprehensiveQuickReference() {
         var out = new StringWriter();
 
@@ -1084,14 +1256,15 @@ class DoppioCommandTest {
         assertThat(out.toString())
             .contains("Doppio Docs")
             .contains(".doppio/default.seed")
+            .contains("doppio gen --env dev")
             .contains("doppio gen auth/login --method POST --body form --bearer")
             .contains("doppio gen auth/login --from-curl")
-            .contains("doppio doctor")
+            .contains("doppio doctor --env dev")
             .contains("doppio ls --json")
             .contains("doppio format auth/login")
             .contains("JSON bodies are pretty-printed")
-            .contains("doppio preview auth/login --json")
-            .contains("doppio run auth/login --json")
+            .contains("doppio preview auth/login --env dev --json")
+            .contains("doppio run auth/login --env dev --json")
             .contains("doppio ls");
     }
 

@@ -10,8 +10,19 @@ public record PreviewReport(
     PreparedRequest request,
     BodyKind bodyKind,
     ProcessedBody body,
-    List<Expectation> expectations
+    List<Expectation> expectations,
+    String environmentName
 ) {
+    public PreviewReport(
+        Path requestFile,
+        PreparedRequest request,
+        BodyKind bodyKind,
+        ProcessedBody body,
+        List<Expectation> expectations
+    ) {
+        this(requestFile, request, bodyKind, body, expectations, null);
+    }
+
     public PreviewReport {
         expectations = List.copyOf(expectations);
     }
